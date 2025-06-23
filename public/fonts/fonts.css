@@ -1,0 +1,30 @@
+/* UhBeeSe_hyun 폰트 정의 */
+@font-face {
+  font-family: 'UhBeeSe_hyun';
+  src: url('./UhBeeSe_hyun.eot'); /* Internet Explorer 지원 */
+  src: url('./UhBeeSe_hyun.woff') format('woff'); /* WOFF 형식 지원 */
+  font-weight: normal;
+  font-style: normal;
+}
+
+/* NanumSquareB 폰트 정의 */
+@font-face {
+  font-family: 'nanumfont';
+  src: url('./NanumSquareB.ttf') format('truetype'); /* TTF 형식 지원 */
+  font-weight: normal;
+  font-style: normal;
+}
+
+/* 스타일 적용 */
+article {
+  font-family: 'UhBeeSe_hyun', serif; /* UhBeeSe_hyun 폰트를 우선 사용 */
+}
+
+textarea {
+  font-family: 'UhBeeSe_hyun', serif; /* UhBeeSe_hyun 폰트를 우선 사용 */
+}
+
+/* 추가: 나눔폰트를 다른 요소에 적용하려면 이렇게 사용할 수 있습니다 */
+.some-class {
+  font-family: 'nanumfont', sans-serif; /* 나눔폰트를 우선 사용 */
+}
