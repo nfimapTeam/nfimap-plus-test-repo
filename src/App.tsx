@@ -6,15 +6,17 @@ import Share from './pages/Nfiti/components/Share';
 
 // Lazy load the page components
 const Home = lazy(() => import('./pages/Home'));
+const Lookalike = lazy(() => import('./pages/Lookalike'));
 const NfititTestFlow = lazy(() => import('./pages/Nfiti/NfitiTestFlow'));
 const NotFoundPage = lazy(() => import('./pages/NotFound'));
 
 const App = () => {
   return (
     <Layout>
-      <Suspense fallback={<Loading /> }>
+      <Suspense fallback={<Loading />}>
         <Routes>
           <Route path="/" element={<Home />} />
+          <Route path="/lookalike" element={<Lookalike />} />
           <Route path="/nfiti" element={<NfititTestFlow />} />
           <Route path="/nfiti/ENT" element={<Share nfiti='ENT' />} />
           <Route path="/nfiti/EST" element={<Share nfiti='EST' />} />
