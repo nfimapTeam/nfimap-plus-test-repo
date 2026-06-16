@@ -1,5 +1,6 @@
-import React, { useState } from "react";
+import React from "react";
 import { Box, Container } from "@chakra-ui/react";
+import { useLocation } from "react-router-dom";
 import Header from "./Header";
 import { bgColorState } from "../../Atom/bgColorState";
 import { useRecoilValue } from "recoil";
@@ -10,6 +11,9 @@ interface LayoutProps {
 
 const Layout = ({ children }: LayoutProps) => {
   const bg = useRecoilValue(bgColorState);
+  const location = useLocation();
+  const isBookingPage = location.pathname === "/ticketing/interpark/booking";
+
   return (
     <Box 
       height="100%"
@@ -24,8 +28,8 @@ const Layout = ({ children }: LayoutProps) => {
         backgroundColor="white"
         boxShadow="lg"
       >
-        <Header />
-        <main style={{ minHeight: "calc(100svh - 68px)"}}>{children}</main>
+        {!isBookingPage && <Header />}
+        <main style={{ minHeight: isBookingPage ? "100svh" : "calc(100svh - 68px)"}}>{children}</main>
       </Container>
     </Box>
   );

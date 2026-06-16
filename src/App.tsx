@@ -6,8 +6,10 @@ import Share from './pages/Nfiti/components/Share';
 
 // Lazy load the page components
 const Home = lazy(() => import('./pages/Home'));
-const Lookalike = lazy(() => import('./pages/Lookalike'));
 const NfititTestFlow = lazy(() => import('./pages/Nfiti/NfitiTestFlow'));
+const Ticketing = lazy(() => import('./pages/Ticketing'));
+const InterparkHome = lazy(() => import('./pages/Ticketing/Interpark/InterparkHome'));
+const InterparkBooking = lazy(() => import('./pages/Ticketing/Interpark/InterparkBooking'));
 const NotFoundPage = lazy(() => import('./pages/NotFound'));
 
 const App = () => {
@@ -16,7 +18,6 @@ const App = () => {
       <Suspense fallback={<Loading />}>
         <Routes>
           <Route path="/" element={<Home />} />
-          <Route path="/lookalike" element={<Lookalike />} />
           <Route path="/nfiti" element={<NfititTestFlow />} />
           <Route path="/nfiti/ENT" element={<Share nfiti='ENT' />} />
           <Route path="/nfiti/EST" element={<Share nfiti='EST' />} />
@@ -26,6 +27,9 @@ const App = () => {
           <Route path="/nfiti/ESF" element={<Share nfiti='ESF' />} />
           <Route path="/nfiti/ISF" element={<Share nfiti='ISF' />} />
           <Route path="/nfiti/INF" element={<Share nfiti='INF' />} />
+          <Route path="/ticketing" element={<Ticketing />} />
+          <Route path="/ticketing/interpark" element={<InterparkHome />} />
+          <Route path="/ticketing/interpark/booking" element={<InterparkBooking />} />
           <Route path="/*" element={<NotFoundPage />} />
         </Routes>
       </Suspense>
