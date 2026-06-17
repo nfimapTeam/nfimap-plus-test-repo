@@ -1,183 +1,56 @@
-import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
+import React, { useState, useMemo } from "react";
 import {
   VStack,
   Text,
   Box,
-  Grid,
   HStack,
   Button,
   IconButton,
   useToast,
   Divider,
+  Grid,
 } from "@chakra-ui/react";
 import { RefreshCw } from "lucide-react";
+import { SeatData } from "../types";
 
 interface SeatMapProps {
   sectionId: string;
-  mode: "normal" | "nboom";
+  mode: "normal" | "nboom" | "jaehyun";
   delayMs: number;
+  seats: SeatData[];
+  onSeatsChange: (updatedSeats: SeatData[]) => void;
   onBackToStadium: () => void;
-  onSelectSeatSuccess: (seatInfo: string) => void;
+  onSelectSeatSuccess: (seatInfo: string, seatId: string) => void;
+  hasFrommDistraction?: boolean;
+  onYiseonjwa?: () => void;
 }
 
-interface SeatData {
-  rowName: string;
-  colIndex: number; // 1-indexed
-  status: "available" | "occupied" | "selected";
-  id: string;
-}
-
-const SeatMap = ({ sectionId, mode, delayMs, onBackToStadium, onSelectSeatSuccess }: SeatMapProps) => {
+const SeatMap = ({
+  sectionId,
+  mode,
+  seats,
+  onSeatsChange,
+  onBackToStadium,
+  onSelectSeatSuccess,
+  hasFrommDistraction = false,
+  onYiseonjwa,
+}: SeatMapProps) => {
   const toast = useToast();
-  const [seats, setSeats] = useState<SeatData[]>([]);
   const [selectedSeatId, setSelectedSeatId] = useState<string | null>(null);
   
   const isFloor = sectionId.startsWith("F");
-  const numRows = isFloor ? 14 : 10; // Floor has 14 rows (A-N), tiers have 10 rows (A-J)
-  const numCols = isFloor ? 22 : 18; // Floor has 22 columns, tiers have 18 columns
+  const numRows = isFloor ? 20 : 16; // Floor has 20 rows, tiers have 16 rows
   
   const rowNames = useMemo(() => {
-    return ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N"].slice(0, numRows);
+    return ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O", "P", "Q", "R", "S", "T"].slice(0, numRows);
   }, [numRows]);
-
-  const timerRef = useRef<NodeJS.Timeout | null>(null);
-
-  // Initialize seat grid
-  const initializeSeats = useCallback(() => {
-    const newSeats: SeatData[] = [];
-    const delaySec = Math.max(0, delayMs / 1000);
-    
-    let baseOccupancy = 0;
-    if (mode === "nboom") {
-      baseOccupancy = 0.65 + delaySec * 0.25;
-    } else {
-      baseOccupancy = 0.35 + delaySec * 0.18;
-    }
-    
-    rowNames.forEach((row, rIdx) => {
-      for (let col = 1; col <= numCols; col++) {
-        let status: "available" | "occupied" = "available";
-
-        // Pre-occupy logic
-        const randomVal = Math.random();
-        
-        // Front rows are more occupied initially
-        const rowBias = (numRows - rIdx) / numRows; // higher bias for front rows
-        
-        let occupancyThreshold = baseOccupancy + rowBias * 0.25;
-
-        // For N-Boom-On: if delay is > 0.8s, front rows (A-F) should be 100% taken.
-        if (mode === "nboom") {
-          if (delaySec > 0.8 && rIdx < 6) {
-            occupancyThreshold = 1.0;
-          }
-          if (delaySec > 1.5) {
-            occupancyThreshold = Math.max(occupancyThreshold, 0.98);
-          }
-        }
-
-        // Clamp occupancy threshold
-        const maxThreshold = (mode === "nboom" && delaySec > 1.8) ? 1.0 : 0.99;
-        const finalThreshold = Math.min(maxThreshold, Math.max(0.0, occupancyThreshold));
-
-        if (randomVal < finalThreshold) {
-          status = "occupied";
-        }
-
-        newSeats.push({
-          rowName: row,
-          colIndex: col,
-          status,
-          id: `${sectionId}-${row}-${col}`,
-        });
-      }
-    });
-
-    setSeats(newSeats);
-    setSelectedSeatId(null);
-  }, [sectionId, mode, delayMs, numRows, numCols, rowNames]);
-
-  // Run initial setup
-  useEffect(() => {
-    initializeSeats();
-  }, [initializeSeats]);
-
-  // Seat depletion ticker
-  useEffect(() => {
-    const tickTime = mode === "nboom" ? 120 : 250; // tick speed
-
-    if (timerRef.current) clearInterval(timerRef.current);
-
-    timerRef.current = setInterval(() => {
-      setSeats((prevSeats) => {
-        const availableSeats = prevSeats.filter((s) => s.status === "available");
-        if (availableSeats.length === 0) return prevSeats;
-
-        // Number of seats to occupy in this tick
-        const numToOccupy = mode === "nboom" 
-          ? Math.floor(Math.random() * 13) + 12 // 12 to 24 seats in N-Boom-On
-          : Math.floor(Math.random() * 6) + 5; // 5 to 10 seats in Normal
-
-        // Select seats to occupy, biasing front rows (A-G)
-        const updatedSeats = [...prevSeats];
-
-        // Prioritize occupying A-G rows first
-        const frontAvailable = availableSeats.filter((s) => ["A", "B", "C", "D", "E", "F", "G"].includes(s.rowName));
-        const backAvailable = availableSeats.filter((s) => !["A", "B", "C", "D", "E", "F", "G"].includes(s.rowName));
-
-        for (let i = 0; i < numToOccupy; i++) {
-          let seatToTake: SeatData | null = null;
-          
-          if (frontAvailable.length > 0 && Math.random() < 0.85) {
-            const randIdx = Math.floor(Math.random() * frontAvailable.length);
-            seatToTake = frontAvailable.splice(randIdx, 1)[0];
-          } else if (backAvailable.length > 0) {
-            const randIdx = Math.floor(Math.random() * backAvailable.length);
-            seatToTake = backAvailable.splice(randIdx, 1)[0];
-          } else if (frontAvailable.length > 0) {
-            const randIdx = Math.floor(Math.random() * frontAvailable.length);
-            seatToTake = frontAvailable.splice(randIdx, 1)[0];
-          }
-
-          if (seatToTake) {
-            const idx = updatedSeats.findIndex((s) => s.id === seatToTake!.id);
-            if (idx !== -1) {
-              updatedSeats[idx] = {
-                ...updatedSeats[idx],
-                status: "occupied",
-              };
-            }
-          }
-        }
-
-        // Bot hijack selected seat in N-Boom-On
-        if (mode === "nboom" && Math.random() < 0.25) {
-          const selectedIdx = updatedSeats.findIndex((s) => s.status === "selected");
-          if (selectedIdx !== -1) {
-            updatedSeats[selectedIdx] = {
-              ...updatedSeats[selectedIdx],
-              status: "occupied",
-            };
-          }
-        }
-
-        return updatedSeats;
-      });
-    }, tickTime);
-
-    return () => {
-      if (timerRef.current) clearInterval(timerRef.current);
-    };
-  }, [mode]);
 
   // Click seat handler
   const handleSeatClick = (seat: SeatData) => {
-    if (seat.status === "occupied") {
-      // Show "이선좌" immediately if they try to click a grey box
+    if (hasFrommDistraction) {
       toast({
-        title: "이미 선택된 좌석입니다. (이선좌)",
-        description: "다른 좌석을 선택해 주세요.",
-        status: "error",
+        title: "화면에 표시된 프롬(fromm) 메시지를 먼저 닫아주세요!",
+        status: "warning",
         duration: 1500,
         isClosable: true,
         position: "top",
@@ -185,21 +58,24 @@ const SeatMap = ({ sectionId, mode, delayMs, onBackToStadium, onSelectSeatSucces
       return;
     }
 
-    setSeats((prevSeats) =>
-      prevSeats.map((s) => {
-        // Toggle selected seat
-        if (s.id === seat.id) {
-          const newStatus = s.status === "selected" ? "available" : "selected";
-          setSelectedSeatId(newStatus === "selected" ? s.id : null);
-          return { ...s, status: newStatus };
-        }
-        // Deselect previous seat
-        if (s.status === "selected") {
-          return { ...s, status: "available" };
-        }
-        return s;
-      })
-    );
+    if (seat.status === "occupied") {
+      // Occupied seats are unclickable and do nothing
+      return;
+    }
+
+    const nextSeats: SeatData[] = seats.map((s) => {
+      if (s.id === seat.id) {
+        const newStatus: "available" | "selected" = s.status === "selected" ? "available" : "selected";
+        setSelectedSeatId(newStatus === "selected" ? s.id : null);
+        return { ...s, status: newStatus };
+      }
+      if (s.status === "selected") {
+        return { ...s, status: "available" };
+      }
+      return s;
+    });
+
+    onSeatsChange(nextSeats);
   };
 
   const handleCompleteSelection = () => {
@@ -215,7 +91,20 @@ const SeatMap = ({ sectionId, mode, delayMs, onBackToStadium, onSelectSeatSucces
       return;
     }
 
-    const selectedSeat = seats.find((s) => s.id === selectedSeatId);
+    const isJaehyun = mode === "jaehyun";
+    const isNboom = mode === "nboom";
+
+    // Simulate instant submit hijack (race condition where another user hits reserve first!)
+    const hijackChance = isJaehyun ? 0.80 : isNboom ? 0.30 : 0.10;
+    let finalSeats = seats;
+    if (Math.random() < hijackChance) {
+      finalSeats = seats.map((s) =>
+        s.id === selectedSeatId ? { ...s, status: "occupied" as const } : s
+      );
+      onSeatsChange(finalSeats);
+    }
+
+    const selectedSeat = finalSeats.find((s) => s.id === selectedSeatId);
     
     // Check if the seat got occupied by a bot before submit!
     if (!selectedSeat || selectedSeat.status === "occupied") {
@@ -228,12 +117,12 @@ const SeatMap = ({ sectionId, mode, delayMs, onBackToStadium, onSelectSeatSucces
         position: "top",
       });
       setSelectedSeatId(null);
-      initializeSeats(); // Reset seat map as penalty
+      if (onYiseonjwa) onYiseonjwa();
       return;
     }
 
     const seatInfoStr = `${sectionId}구역 ${selectedSeat.rowName}열 ${selectedSeat.colIndex}번`;
-    onSelectSeatSuccess(seatInfoStr);
+    onSelectSeatSuccess(seatInfoStr, selectedSeat.id);
   };
 
   // Get seat info text
@@ -261,7 +150,7 @@ const SeatMap = ({ sectionId, mode, delayMs, onBackToStadium, onSelectSeatSucces
           size="xs"
           rounded="full"
           colorScheme="gray"
-          onClick={initializeSeats}
+          onClick={() => toast({ title: "좌석 상태가 갱신되었습니다.", status: "info", duration: 1000, position: "top" })}
         />
       </HStack>
 
@@ -312,7 +201,7 @@ const SeatMap = ({ sectionId, mode, delayMs, onBackToStadium, onSelectSeatSucces
                       h="10px"
                       bg={bgColor}
                       rounded="1.5px"
-                      cursor="pointer"
+                      cursor={seat.status === "occupied" ? "default" : "pointer"}
                       transition="0.1s"
                       _hover={seat.status !== "occupied" ? { transform: "scale(1.3)" } : {}}
                       onClick={() => handleSeatClick(seat)}

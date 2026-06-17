@@ -1,90 +1,14 @@
-import React, { useState, useEffect } from "react";
+import React from "react";
 import { Box, VStack, HStack, Text, Badge, Grid, Divider } from "@chakra-ui/react";
+import { SectionSeatData } from "../types";
 
 interface StadiumMapProps {
-  mode: "normal" | "nboom";
-  delayMs: number;
+  mode: "normal" | "nboom" | "jaehyun";
+  sections: SectionSeatData[];
   onSelectSection: (sectionId: string) => void;
 }
 
-interface SectionSeatData {
-  id: string;
-  name: string;
-  type: "FLOOR" | "2F" | "3F";
-  color: string;
-  initialSeats: number;
-  remainingSeats: number;
-  depleteSpeed: number; // seat depletion rate factor
-}
-
-const StadiumMap = ({ mode, delayMs, onSelectSection }: StadiumMapProps) => {
-  const [sections, setSections] = useState<SectionSeatData[]>(() => {
-    const delaySec = Math.max(0, delayMs / 1000);
-    
-    const calculateStartingSeats = (id: string, initialTotal: number) => {
-      let startingPercent = 1.0;
-      if (mode === "nboom") {
-        const isFloor = id.startsWith("F");
-        if (isFloor) {
-          startingPercent = Math.max(0, 0.6 - delaySec * 0.4);
-        } else {
-          startingPercent = Math.max(0, 0.85 - delaySec * 0.25);
-        }
-      } else {
-        const isFloor = id.startsWith("F");
-        if (isFloor) {
-          startingPercent = Math.max(0, 0.9 - delaySec * 0.15);
-        } else {
-          startingPercent = Math.max(0, 0.95 - delaySec * 0.08);
-        }
-      }
-      startingPercent = Math.min(1.0, Math.max(0.0, startingPercent * (0.9 + Math.random() * 0.2)));
-      return Math.floor(initialTotal * startingPercent);
-    };
-
-    return [
-      // Floor (Purple)
-      { id: "F1", name: "Floor F1", type: "FLOOR", color: "purple.500", initialSeats: 308, remainingSeats: calculateStartingSeats("F1", 308), depleteSpeed: mode === "nboom" ? 28 : 8 },
-      { id: "F2", name: "Floor F2", type: "FLOOR", color: "purple.500", initialSeats: 308, remainingSeats: calculateStartingSeats("F2", 308), depleteSpeed: mode === "nboom" ? 28 : 8 },
-      { id: "F3", name: "Floor F3", type: "FLOOR", color: "purple.500", initialSeats: 308, remainingSeats: calculateStartingSeats("F3", 308), depleteSpeed: mode === "nboom" ? 24 : 7 },
-      { id: "F4", name: "Floor F4", type: "FLOOR", color: "purple.500", initialSeats: 308, remainingSeats: calculateStartingSeats("F4", 308), depleteSpeed: mode === "nboom" ? 24 : 7 },
-      // 2F (Green & Blue)
-      { id: "202", name: "202구역", type: "2F", color: "teal.500", initialSeats: 180, remainingSeats: calculateStartingSeats("202", 180), depleteSpeed: mode === "nboom" ? 15 : 4 },
-      { id: "203", name: "203구역", type: "2F", color: "green.500", initialSeats: 180, remainingSeats: calculateStartingSeats("203", 180), depleteSpeed: mode === "nboom" ? 16 : 4 },
-      { id: "204", name: "204구역", type: "2F", color: "green.500", initialSeats: 180, remainingSeats: calculateStartingSeats("204", 180), depleteSpeed: mode === "nboom" ? 16 : 4 },
-      { id: "205", name: "205구역", type: "2F", color: "teal.500", initialSeats: 180, remainingSeats: calculateStartingSeats("205", 180), depleteSpeed: mode === "nboom" ? 15 : 4 },
-      { id: "213", name: "213구역", type: "2F", color: "teal.500", initialSeats: 180, remainingSeats: calculateStartingSeats("213", 180), depleteSpeed: mode === "nboom" ? 15 : 4 },
-      { id: "212", name: "212구역", type: "2F", color: "teal.500", initialSeats: 180, remainingSeats: calculateStartingSeats("212", 180), depleteSpeed: mode === "nboom" ? 15 : 4 },
-      // 3F (Blue)
-      { id: "308", name: "308구역", type: "3F", color: "blue.500", initialSeats: 180, remainingSeats: calculateStartingSeats("308", 180), depleteSpeed: mode === "nboom" ? 12 : 3 },
-      { id: "309", name: "309구역", type: "3F", color: "blue.500", initialSeats: 180, remainingSeats: calculateStartingSeats("309", 180), depleteSpeed: mode === "nboom" ? 12 : 3 },
-      { id: "313", name: "313구역", type: "3F", color: "blue.500", initialSeats: 180, remainingSeats: calculateStartingSeats("313", 180), depleteSpeed: mode === "nboom" ? 10 : 2 },
-      { id: "314", name: "314구역", type: "3F", color: "blue.500", initialSeats: 180, remainingSeats: calculateStartingSeats("314", 180), depleteSpeed: mode === "nboom" ? 10 : 2 },
-    ];
-  });
-
-  // Seat depletion interval
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setSections((prevSections) =>
-        prevSections.map((sec) => {
-          if (sec.remainingSeats <= 0) return sec;
-
-          // Random tick depletion
-          const depleteAmount = Math.floor(Math.random() * sec.depleteSpeed * 2);
-          const newSeats = sec.remainingSeats - depleteAmount;
-
-          return {
-            ...sec,
-            remainingSeats: newSeats < 0 ? 0 : newSeats,
-          };
-        })
-      );
-    }, 250);
-
-    return () => clearInterval(interval);
-  }, []);
-
+const StadiumMap = ({ mode, sections, onSelectSection }: StadiumMapProps) => {
   const totalSeats = sections.reduce((acc, sec) => acc + sec.remainingSeats, 0);
 
   return (

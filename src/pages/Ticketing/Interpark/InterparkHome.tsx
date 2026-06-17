@@ -27,7 +27,7 @@ const InterparkHome = () => {
   const { isOpen, onOpen, onClose } = useDisclosure();
 
   // Practice configuration states
-  const [difficulty, setDifficulty] = useState<"normal" | "nboom">("normal");
+  const [difficulty, setDifficulty] = useState<"normal" | "nboom" | "jaehyun">("normal");
   const [delay, setDelay] = useState<number>(3); // seconds before open
 
   // Ticketing progress states
@@ -374,7 +374,7 @@ const InterparkHome = () => {
                   </Text>
                   <HelpCircle size={16} color="gray.400" />
                 </HStack>
-                <RadioGroup onChange={(val) => setDifficulty(val as "normal" | "nboom")} value={difficulty} w="full">
+                <RadioGroup onChange={(val) => setDifficulty(val as "normal" | "nboom" | "jaehyun")} value={difficulty} w="full">
                   <VStack spacing={3} align="stretch">
                     <Box
                       border="1px solid"
@@ -406,7 +406,24 @@ const InterparkHome = () => {
                         <Text fontWeight="bold" fontSize="14px" color="red.700">엔붐온 모드 (Hard)</Text>
                       </Radio>
                       <Text fontSize="12px" color="gray.500" pl={6} mt={1}>
-                        콘서트 주요 구역(Floor, 전열)이 극단적으로 빨리 사라집니다. 매 300ms마다 좌석이 빠르게 잠깁니다.
+                        콘서트 주요 구역(Floor, 전열)이 극단적으로 빨리 사라집니다. 좌석이 엄청 빠르게 사라집니다.
+                      </Text>
+                    </Box>
+
+                    <Box
+                      border="1px solid"
+                      borderColor={difficulty === "jaehyun" ? "purple.200" : "gray.200"}
+                      bg={difficulty === "jaehyun" ? "purple.50" : "white"}
+                      p={3}
+                      rounded="xl"
+                      cursor="pointer"
+                      onClick={() => setDifficulty("jaehyun")}
+                    >
+                      <Radio value="jaehyun" colorScheme="purple">
+                        <Text fontWeight="bold" fontSize="14px" color="purple.700">재현 모드 (Jaehyun Mode)</Text>
+                      </Radio>
+                      <Text fontSize="12px" color="gray.500" pl={6} mt={1}>
+                        유튜브 방송 알림, 슬라이더 퍼즐 검증, 프롬(Fromm) 재현이의 채팅 알림 등 온갖 극악의 방해 요소가 당신을 괴롭힙니다.
                       </Text>
                     </Box>
                   </VStack>
