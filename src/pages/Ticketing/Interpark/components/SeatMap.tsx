@@ -141,7 +141,7 @@ const SeatMap = ({
     <VStack spacing={3} align="stretch" py={2} px={1} h="full">
       {/* 상단 배치도 안내 문구 */}
       <HStack justify="space-between" align="center" px={1}>
-        <Text fontSize="13px" fontWeight="bold" color="red.500">
+        <Text fontSize="13px" fontWeight="bold" color="blue.500">
           * {sectionId}구역의 좌석 배치도 입니다.
         </Text>
         <IconButton

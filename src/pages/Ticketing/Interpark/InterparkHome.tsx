@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import {
   Box,
   VStack,
@@ -19,11 +19,13 @@ import {
   RadioGroup,
   Radio,
   Divider,
+  Image,
 } from "@chakra-ui/react";
 import { ArrowLeft, RefreshCw, Clock, HelpCircle } from "lucide-react";
 
 const InterparkHome = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { isOpen, onOpen, onClose } = useDisclosure();
 
   // Practice configuration states
@@ -39,10 +41,64 @@ const InterparkHome = () => {
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const openTimeRef = useRef<number | null>(null);
 
-  // Setup modal initially open
+  // Setup modal initially open unless autoStart is true
   useEffect(() => {
-    onOpen();
-  }, [onOpen]);
+    const autoStart = searchParams.get("autoStart") === "true";
+    const modeParam = searchParams.get("mode") as "normal" | "nboom" | "jaehyun";
+    const delayParam = searchParams.get("delay");
+
+    if (autoStart && modeParam && delayParam) {
+      setDifficulty(modeParam);
+      const initialDelay = Number(delayParam);
+      setDelay(initialDelay);
+      setIsStarted(true);
+      setIsOpenTicket(false);
+      openTimeRef.current = null;
+      setTimeLeft(initialDelay);
+
+      const startHour = 19;
+      const startMin = 59;
+      const startSec = 60 - initialDelay;
+
+      let currentSecondsElapsed = 0;
+
+      if (timerRef.current) clearInterval(timerRef.current);
+
+      timerRef.current = setInterval(() => {
+        currentSecondsElapsed += 1;
+        const secondsRemaining = initialDelay - currentSecondsElapsed;
+
+        const targetSec = startSec + currentSecondsElapsed;
+        let displayHour = startHour;
+        let displayMin = startMin;
+        let displaySec = targetSec;
+
+        if (displaySec >= 60) {
+          displaySec = displaySec - 60;
+          displayMin += 1;
+        }
+        if (displayMin >= 60) {
+          displayMin = 0;
+          displayHour += 1;
+        }
+
+        const formatTime = (h: number, m: number, s: number) => {
+          return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+        };
+
+        setCurrentTime(formatTime(displayHour, displayMin, displaySec));
+        setTimeLeft(secondsRemaining > 0 ? secondsRemaining : 0);
+
+        if (secondsRemaining <= 0) {
+          setIsOpenTicket(true);
+          openTimeRef.current = Date.now();
+          if (timerRef.current) clearInterval(timerRef.current);
+        }
+      }, 1000);
+    } else {
+      onOpen();
+    }
+  }, [onOpen, searchParams]);
 
   // Handle ticketing simulation
   const startSimulation = () => {
@@ -56,7 +112,7 @@ const InterparkHome = () => {
     const startHour = 19;
     const startMin = 59;
     const startSec = 60 - delay;
-    
+
     let currentSecondsElapsed = 0;
 
     if (timerRef.current) clearInterval(timerRef.current);
@@ -106,48 +162,70 @@ const InterparkHome = () => {
     const clickTime = Date.now();
     const openTime = openTimeRef.current || clickTime;
     const delayMs = clickTime - openTime;
-    navigate(`/ticketing/interpark/booking?mode=${difficulty}&delay=${delayMs}`);
+    navigate(`/ticketing/interpark/booking?mode=${difficulty}&delay=${delayMs}&countdownDelay=${delay}`);
   };
 
-  // Calendar days setup matching July 2026 (Starts Wednesday 1st)
-  // Rows: Mon=1, Tue=2, Wed=3, Thu=4, Fri=5, Sat=6, Sun=0
-  const calendarDays = [
-    { day: 28, isCurrentMonth: false },
-    { day: 29, isCurrentMonth: false },
-    { day: 30, isCurrentMonth: false },
-    { day: 1, isCurrentMonth: true },
-    { day: 2, isCurrentMonth: true },
-    { day: 3, isCurrentMonth: true },
-    { day: 4, isCurrentMonth: true },
-    { day: 5, isCurrentMonth: true, isSunday: true },
-    { day: 6, isCurrentMonth: true },
-    { day: 7, isCurrentMonth: true },
-    { day: 8, isCurrentMonth: true },
-    { day: 9, isCurrentMonth: true },
-    { day: 10, isCurrentMonth: true },
-    { day: 11, isCurrentMonth: true, isSelected: true }, // Select July 11th
-    { day: 12, isCurrentMonth: true, isSunday: true },
-    { day: 13, isCurrentMonth: true },
-    { day: 14, isCurrentMonth: true },
-    { day: 15, isCurrentMonth: true },
-    { day: 16, isCurrentMonth: true },
-    { day: 17, isCurrentMonth: true },
-    { day: 18, isCurrentMonth: true },
-    { day: 19, isCurrentMonth: true, isSunday: true },
-    { day: 20, isCurrentMonth: true },
-    { day: 21, isCurrentMonth: true },
-    { day: 22, isCurrentMonth: true },
-    { day: 23, isCurrentMonth: true },
-    { day: 24, isCurrentMonth: true },
-    { day: 25, isCurrentMonth: true },
-    { day: 26, isCurrentMonth: true, isSunday: true },
-    { day: 27, isCurrentMonth: true },
-    { day: 28, isCurrentMonth: true },
-    { day: 29, isCurrentMonth: true },
-    { day: 30, isCurrentMonth: true },
-    { day: 31, isCurrentMonth: true },
-    { day: 1, isCurrentMonth: false },
-  ];
+  // Dynamic calendar states
+  const [calendarDays, setCalendarDays] = useState<{ day: number; isCurrentMonth: boolean; isSunday?: boolean; isSelected?: boolean }[]>([]);
+  const [yearMonthStr, setYearMonthStr] = useState<string>("");
+  const [periodStr, setPeriodStr] = useState<string>("");
+
+  useEffect(() => {
+    const today = new Date();
+    const currentYear = today.getFullYear();
+    const currentMonth = today.getMonth(); // 0 = Jan
+    const currentDate = today.getDate();
+
+    setYearMonthStr(`${currentYear}.${String(currentMonth + 1).padStart(2, "0")}`);
+
+    const nextDay = new Date(today);
+    nextDay.setDate(today.getDate() + 1);
+    const formatDateStr = (d: Date) => `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, "0")}.${String(d.getDate()).padStart(2, "0")}`;
+    setPeriodStr(`${formatDateStr(today)} ~ ${formatDateStr(nextDay)}`);
+
+    // First day of current month
+    const firstDay = new Date(currentYear, currentMonth, 1);
+    const startDayOfWeek = firstDay.getDay(); // 0 = Sun
+
+    // Last day of previous month
+    const prevLast = new Date(currentYear, currentMonth, 0).getDate();
+    // Last day of current month
+    const currentLast = new Date(currentYear, currentMonth + 1, 0).getDate();
+
+    const days: any[] = [];
+
+    // Prev month padding
+    for (let i = startDayOfWeek - 1; i >= 0; i--) {
+      days.push({
+        day: prevLast - i,
+        isCurrentMonth: false,
+      });
+    }
+
+    // Current month days
+    for (let i = 1; i <= currentLast; i++) {
+      const dateObj = new Date(currentYear, currentMonth, i);
+      const isSunday = dateObj.getDay() === 0;
+      days.push({
+        day: i,
+        isCurrentMonth: true,
+        isSunday,
+        isSelected: i === currentDate,
+      });
+    }
+
+    // Next month padding to fill up to 35 or 42 slots
+    const totalSlots = days.length <= 35 ? 35 : 42;
+    const nextPaddingCount = totalSlots - days.length;
+    for (let i = 1; i <= nextPaddingCount; i++) {
+      days.push({
+        day: i,
+        isCurrentMonth: false,
+      });
+    }
+
+    setCalendarDays(days);
+  }, []);
 
   return (
     <VStack spacing={0} align="stretch" h="full" bg="gray.50" position="relative" minH="calc(100svh - 68px)">
@@ -162,7 +240,7 @@ const InterparkHome = () => {
             onClick={() => navigate("/ticketing")}
           />
           {isStarted && (
-            <HStack bg="red.50" color="red.600" px={3} py={1.5} rounded="xl" spacing={2} border="1px solid" borderColor="red.100">
+            <HStack bg="blue.50" color="blue.600" px={3} py={1.5} rounded="xl" spacing={2} border="1px solid" borderColor="blue.100">
               <Clock size={16} />
               <Text fontSize="14px" fontWeight="bold" fontFamily="monospace">
                 서버 시계: {currentTime}
@@ -202,24 +280,13 @@ const InterparkHome = () => {
                   color="white"
                   textAlign="center"
                 >
-                  <Text fontSize="12px" fontWeight="bold" letterSpacing="2px" color="pink.200">
-                    2026 CONCERT
-                  </Text>
-                  <Text fontSize="24px" fontWeight="900" mt={2} lineHeight="1.2">
-                    N.Flying
-                  </Text>
-                  <Text fontSize="20px" fontWeight="800" bgGradient="linear(to-r, white, pink.200)" bgClip="text">
-                    'N-Finity'
-                  </Text>
-                  <Text fontSize="12px" mt={6} opacity={0.8}>
-                    IN SEOUL
-                  </Text>
+                  <Image src="/image/logo/logo_nfi.svg" alt="N.Flying Logo" maxW="80%" maxH="80%" objectFit="contain" />
                 </Box>
               </Box>
 
               <VStack align="start" spacing={2} mt={2}>
                 <Heading fontSize="20px" fontWeight="800" lineHeight="1.3">
-                  2026 N.Flying Concert 'N-Finity' in Seoul
+                  2026 N.Flying Concert '&con' in Seoul
                 </Heading>
 
                 <HStack justify="space-between" w="full" mt={2}>
@@ -235,10 +302,10 @@ const InterparkHome = () => {
 
                 <Grid templateColumns="75px 1fr" gap={2} fontSize="13px">
                   <Text color="gray.400">장소</Text>
-                  <Text color="gray.800" fontWeight="600">YES24 LIVE HALL</Text>
+                  <Text color="gray.800" fontWeight="600">N.Flying Hall</Text>
 
                   <Text color="gray.400">기간</Text>
-                  <Text color="gray.800">2026.07.11 ~ 2026.07.12</Text>
+                  <Text color="gray.800">{periodStr}</Text>
                 </Grid>
               </VStack>
             </VStack>
@@ -250,7 +317,7 @@ const InterparkHome = () => {
               {/* 년/월 표시 */}
               <HStack justify="center" spacing={4} py={1}>
                 <Text fontSize="16px" fontWeight="bold">
-                  2026.07
+                  {yearMonthStr}
                 </Text>
               </HStack>
 
@@ -279,10 +346,10 @@ const InterparkHome = () => {
                         item.isSelected
                           ? "white"
                           : !item.isCurrentMonth
-                          ? "gray.300"
-                          : item.isSunday
-                          ? "red.500"
-                          : "gray.700"
+                            ? "gray.300"
+                            : item.isSunday
+                              ? "red.500"
+                              : "gray.700"
                       }
                       bg={item.isSelected ? "blue.600" : "transparent"}
                     >
@@ -420,10 +487,10 @@ const InterparkHome = () => {
                       onClick={() => setDifficulty("jaehyun")}
                     >
                       <Radio value="jaehyun" colorScheme="purple">
-                        <Text fontWeight="bold" fontSize="14px" color="purple.700">재현 모드 (Jaehyun Mode)</Text>
+                        <Text fontWeight="bold" fontSize="14px" color="purple.700">대환장 모드 (Crazy Mode)</Text>
                       </Radio>
                       <Text fontSize="12px" color="gray.500" pl={6} mt={1}>
-                        유튜브 방송 알림, 슬라이더 퍼즐 검증, 프롬(Fromm) 재현이의 채팅 알림 등 온갖 극악의 방해 요소가 당신을 괴롭힙니다.
+                        프롬 채팅 및 유튜브 라이브 알림, 슬라이더 퍼즐 검증 등 온갖 극악의 방해 요소가 괴롭히는 대환장 파티입니다.
                       </Text>
                     </Box>
                   </VStack>
