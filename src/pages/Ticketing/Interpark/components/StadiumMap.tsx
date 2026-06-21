@@ -118,21 +118,7 @@ const StadiumMap = ({ mode, sections, onSelectSection }: StadiumMapProps) => {
               })}
             </HStack>
 
-            {/* CONSOLE */}
-            <Box
-              bg="gray.800"
-              border="1px solid"
-              borderColor="gray.600"
-              w="140px"
-              py={1.5}
-              rounded="md"
-              textAlign="center"
-              opacity={0.7}
-            >
-              <Text fontSize="10px" color="gray.400" letterSpacing="2px">
-                CONSOLE
-              </Text>
-            </Box>
+
 
             {/* 2F & 3F 구역 (사이드 및 백) */}
             <Grid templateColumns="repeat(3, 1fr)" gap={3} w="full">

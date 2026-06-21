@@ -10,6 +10,8 @@ const NfititTestFlow = lazy(() => import('./pages/Nfiti/NfitiTestFlow'));
 const Ticketing = lazy(() => import('./pages/Ticketing'));
 const InterparkHome = lazy(() => import('./pages/Ticketing/Interpark/InterparkHome'));
 const InterparkBooking = lazy(() => import('./pages/Ticketing/Interpark/InterparkBooking'));
+const TicketlinkHome = lazy(() => import('./pages/Ticketing/Ticketlink/TicketlinkHome'));
+const TicketlinkBooking = lazy(() => import('./pages/Ticketing/Ticketlink/TicketlinkBooking'));
 const NotFoundPage = lazy(() => import('./pages/NotFound'));
 
 const App = () => {
@@ -30,6 +32,8 @@ const App = () => {
           <Route path="/ticketing" element={<Ticketing />} />
           <Route path="/ticketing/interpark" element={<InterparkHome />} />
           <Route path="/ticketing/interpark/booking" element={<InterparkBooking />} />
+          <Route path="/ticketing/ticketlink" element={<TicketlinkHome />} />
+          <Route path="/ticketing/ticketlink/booking" element={<TicketlinkBooking />} />
           <Route path="/*" element={<NotFoundPage />} />
         </Routes>
       </Suspense>

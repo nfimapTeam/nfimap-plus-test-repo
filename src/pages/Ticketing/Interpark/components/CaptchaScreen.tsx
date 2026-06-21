@@ -233,7 +233,7 @@ const CaptchaScreen = ({ onSuccess }: CaptchaScreenProps) => {
           <Input
             placeholder="문자를 입력하세요 (대소문자 구분 없음)"
             value={userInput}
-            onChange={(e) => setUserInput(e.target.value)}
+            onChange={(e) => setUserInput(e.target.value.toUpperCase())}
             size="lg"
             rounded="xl"
             textAlign="center"

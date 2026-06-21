@@ -21,9 +21,9 @@ import {
   Divider,
   Image,
 } from "@chakra-ui/react";
-import { ArrowLeft, RefreshCw, Clock, HelpCircle } from "lucide-react";
+import { ArrowLeft, RefreshCw, Clock, Settings, HelpCircle } from "lucide-react";
 
-const InterparkHome = () => {
+const TicketlinkHome = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { isOpen, onOpen, onClose } = useDisclosure();
@@ -37,9 +37,13 @@ const InterparkHome = () => {
   const [currentTime, setCurrentTime] = useState<string>("19:59:55.000");
   const [timeLeft, setTimeLeft] = useState<number>(5);
   const [isOpenTicket, setIsOpenTicket] = useState<boolean>(false);
+  const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
+  const [isPageLoading, setIsPageLoading] = useState<boolean>(false);
+  const [showGuide, setShowGuide] = useState<boolean>(false);
 
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const openTimeRef = useRef<number | null>(null);
+  const openTimeOffsetRef = useRef<number>(0);
   const simulationStartRef = useRef<number>(0);
 
   // Setup modal initially open unless autoStart is true
@@ -54,7 +58,9 @@ const InterparkHome = () => {
       setDelay(initialDelay);
       setIsStarted(true);
       setIsOpenTicket(false);
+      setShowGuide(true);
       openTimeRef.current = null;
+      openTimeOffsetRef.current = (Math.random() * 300) - 150; // -150ms to +150ms
       simulationStartRef.current = Date.now();
       setTimeLeft(initialDelay);
 
@@ -85,11 +91,9 @@ const InterparkHome = () => {
         setTimeLeft(secondsRemaining > 0 ? secondsRemaining : 0);
 
         if (secondsRemaining <= 0) {
-          setIsOpenTicket(true);
           if (!openTimeRef.current) {
-            openTimeRef.current = simulationStartRef.current + (initialDelay * 1000);
+            openTimeRef.current = simulationStartRef.current + (initialDelay * 1000) + openTimeOffsetRef.current;
           }
-          if (timerRef.current) clearInterval(timerRef.current);
         }
       }, 30);
     } else {
@@ -102,7 +106,9 @@ const InterparkHome = () => {
     onClose();
     setIsStarted(true);
     setIsOpenTicket(false);
+    setShowGuide(true);
     openTimeRef.current = null;
+    openTimeOffsetRef.current = (Math.random() * 300) - 150; // -150ms to +150ms
     simulationStartRef.current = Date.now();
     setTimeLeft(delay);
 
@@ -133,11 +139,9 @@ const InterparkHome = () => {
       setTimeLeft(secondsRemaining > 0 ? secondsRemaining : 0);
 
       if (secondsRemaining <= 0) {
-        setIsOpenTicket(true);
         if (!openTimeRef.current) {
-          openTimeRef.current = simulationStartRef.current + (delay * 1000);
+          openTimeRef.current = simulationStartRef.current + (delay * 1000) + openTimeOffsetRef.current;
         }
-        if (timerRef.current) clearInterval(timerRef.current);
       }
     }, 30);
   };
@@ -148,17 +152,43 @@ const InterparkHome = () => {
     };
   }, []);
 
+  const handleManualRefresh = () => {
+    if (!isStarted) return;
+    setShowGuide(false);
+    setIsRefreshing(true);
+    setIsPageLoading(true);
+
+    // Stutter/lag delay when opening: add an extra 250-450ms lag if it is opening soon
+    const isOpeningSoon = timeLeft <= 1;
+    const stutterDelay = isOpeningSoon ? Math.floor(Math.random() * 200) + 250 : 0;
+    const totalDelay = 600 + stutterDelay;
+
+    setTimeout(() => {
+      setIsRefreshing(false);
+      setIsPageLoading(false);
+      // Check if open time has already passed
+      const now = Date.now();
+      const openTime = openTimeRef.current;
+      if (openTime && now >= openTime) {
+        setIsOpenTicket(true);
+        if (timerRef.current) clearInterval(timerRef.current);
+      }
+    }, totalDelay); // Simulate page refresh delay with optional lag
+  };
+
   const handleBookingClick = () => {
     if (!isOpenTicket) return;
     const clickTime = Date.now();
     const openTime = openTimeRef.current || clickTime;
     const delayMs = clickTime - openTime;
-    sessionStorage.setItem("interparkStarted", "true");
-    navigate(`/ticketing/interpark/booking?mode=${difficulty}&delay=${delayMs}&countdownDelay=${delay}`);
+    sessionStorage.setItem("ticketlinkStarted", "true");
+    navigate(`/ticketing/ticketlink/booking?mode=${difficulty}&delay=${delayMs}&countdownDelay=${delay}`);
   };
 
   // Dynamic calendar states
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [calendarDays, setCalendarDays] = useState<{ day: number; isCurrentMonth: boolean; isSunday?: boolean; isSelected?: boolean }[]>([]);
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [yearMonthStr, setYearMonthStr] = useState<string>("");
   const [periodStr, setPeriodStr] = useState<string>("");
 
@@ -173,15 +203,12 @@ const InterparkHome = () => {
     const nextDay = new Date(today);
     nextDay.setDate(today.getDate() + 1);
     const formatDateStr = (d: Date) => `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, "0")}.${String(d.getDate()).padStart(2, "0")}`;
-    setPeriodStr(`${formatDateStr(today)} ~ ${formatDateStr(nextDay)}`);
+    setPeriodStr(`${formatDateStr(today)} - ${formatDateStr(nextDay)}`);
 
-    // First day of current month
     const firstDay = new Date(currentYear, currentMonth, 1);
     const startDayOfWeek = firstDay.getDay(); // 0 = Sun
 
-    // Last day of previous month
     const prevLast = new Date(currentYear, currentMonth, 0).getDate();
-    // Last day of current month
     const currentLast = new Date(currentYear, currentMonth + 1, 0).getDate();
 
     const days: any[] = [];
@@ -206,7 +233,6 @@ const InterparkHome = () => {
       });
     }
 
-    // Next month padding to fill up to 35 or 42 slots
     const totalSlots = days.length <= 35 ? 35 : 42;
     const nextPaddingCount = totalSlots - days.length;
     for (let i = 1; i <= nextPaddingCount; i++) {
@@ -222,7 +248,7 @@ const InterparkHome = () => {
   return (
     <VStack spacing={0} align="stretch" h="full" bg="gray.50" position="relative" minH="calc(100svh - 68px)">
       {/* 상단 네비 및 시계 */}
-      <Box bg="white" borderBottom="1px solid" borderColor="gray.200" py={3} px={4}>
+      <Box bg="white" borderBottom="1px solid" borderColor="gray.200" py={3} px={4} position="sticky" top={0} zIndex={10}>
         <HStack justify="space-between">
           <IconButton
             icon={<ArrowLeft size={20} />}
@@ -231,32 +257,127 @@ const InterparkHome = () => {
             rounded="full"
             onClick={() => navigate("/ticketing")}
           />
-          {isStarted && (
-            <HStack bg="blue.50" color="blue.600" px={3} py={1.5} rounded="xl" spacing={2} border="1px solid" borderColor="blue.100">
-              <Clock size={16} />
-              <Text fontSize="14px" fontWeight="bold" fontFamily="monospace">
-                서버 시계: {currentTime}
-              </Text>
-            </HStack>
-          )}
-          <IconButton
-            icon={<RefreshCw size={18} />}
-            aria-label="연습설정 열기"
-            variant="ghost"
-            rounded="full"
-            onClick={onOpen}
-          />
+          <Heading fontSize="12px" fontWeight="bold" noOfLines={1} maxW="120px" color="gray.800">
+            2026 N.Flying Concert '&con' in Seoul 🇰🇷 한국어
+          </Heading>
+          <HStack spacing={2}>
+            <IconButton
+              icon={<Settings size={18} />}
+              aria-label="연습설정"
+              variant="ghost"
+              rounded="full"
+              size="sm"
+              onClick={onOpen}
+              opacity={showGuide && isStarted && !isOpenTicket ? 0.4 : 1}
+            />
+            <Button
+              leftIcon={<RefreshCw size={showGuide && isStarted && !isOpenTicket ? 18 : 15} className={isRefreshing ? "spin-animation" : ""} />}
+              bg="#FF3838"
+              color="white"
+              _hover={{ bg: "#E02E2E", transform: "scale(1.05)" }}
+              _active={{ bg: "#C22424", transform: "scale(0.97)" }}
+              rounded="xl"
+              onClick={handleManualRefresh}
+              fontWeight="black"
+              fontSize={showGuide && isStarted && !isOpenTicket ? "15px" : "12px"}
+              h={showGuide && isStarted && !isOpenTicket ? "44px" : "34px"}
+              px={showGuide && isStarted && !isOpenTicket ? 5 : 3}
+              shadow={showGuide && isStarted && !isOpenTicket ? "0 0 0 4px rgba(255,56,56,0.35), xl" : "sm"}
+              border="2px solid"
+              borderColor="red.600"
+              className={showGuide && isStarted && !isOpenTicket ? "pulse-animation" : ""}
+              transition="all 0.3s ease"
+            >
+              새로고침
+            </Button>
+          </HStack>
         </HStack>
       </Box>
 
+      {/* 실시간 서버시계 영역 - 크고 임팩트 있게 */}
+      {isStarted && (
+        <Box
+          bg="linear-gradient(135deg, #CC0000 0%, #FF3838 60%, #FF6B6B 100%)"
+          py={3.5}
+          px={4}
+          borderBottom="3px solid"
+          borderColor="red.800"
+          textAlign="center"
+          position="relative"
+          zIndex={30}
+          shadow="0 4px 20px rgba(255,56,56,0.4)"
+        >
+          <VStack spacing={0.5} align="center">
+            <HStack spacing={1.5} color="red.100" justify="center">
+              <Clock size={12} />
+              <Text fontSize="10px" fontWeight="bold" letterSpacing="2px" color="rgba(255,255,255,0.75)">
+                티켓링크 실시간 서버 시계
+              </Text>
+            </HStack>
+            <Text
+              fontSize="28px"
+              fontWeight="black"
+              fontFamily="'Courier New', monospace"
+              color="white"
+              letterSpacing="3px"
+              lineHeight={1.1}
+              textShadow="0 2px 8px rgba(0,0,0,0.3)"
+            >
+              {currentTime}
+            </Text>
+          </VStack>
+        </Box>
+      )}
+
+      {/* 새로고침 안내 팁 박스 */}
+      {isStarted && !isOpenTicket && (
+        <Box bg="yellow.50" py={2.5} px={4} borderBottom="1px solid" borderColor="yellow.100" textAlign="center" position="relative" zIndex={20}>
+          <Text fontSize="12px" fontWeight="bold" color="yellow.700">
+            💡 20:00:00이 되면 우측 상단 <Text as="span" color="red.600" fontWeight="black">새로고침</Text> 버튼을 눌러야 예매가 오픈됩니다!
+          </Text>
+        </Box>
+      )}
+
       {/* 모바일/웹 레이아웃 */}
-      <Box p={4} overflowY="auto" flex="1">
+      <Box
+        p={4}
+        overflowY="auto"
+        flex="1"
+        position="relative"
+        opacity={showGuide && isStarted && !isOpenTicket ? 0.38 : 1}
+        style={{
+          filter: showGuide && isStarted && !isOpenTicket ? "blur(1.5px)" : "none",
+          transition: "opacity 0.6s ease, filter 0.6s ease",
+          pointerEvents: showGuide && isStarted && !isOpenTicket ? "none" : "auto",
+        }}
+      >
+        {isPageLoading && (
+          <Box
+            position="absolute"
+            top={0}
+            left={0}
+            right={0}
+            bottom={0}
+            bg="white"
+            zIndex={100}
+            display="flex"
+            alignItems="center"
+            justifyContent="center"
+            opacity={0.98}
+          >
+            <VStack spacing={4}>
+              <RefreshCw size={36} className="spin-animation" color="#FF3838" />
+              <Text fontSize="13px" fontWeight="bold" color="gray.500">
+                페이지를 불러오는 중...
+              </Text>
+            </VStack>
+          </Box>
+        )}
         <VStack spacing={5} align="stretch">
           {/* 상품 상세 헤더 (포스터 및 정보) */}
           <Box bg="white" p={4} rounded="2xl" border="1px solid" borderColor="gray.100" shadow="sm">
             <VStack spacing={4} align="stretch">
               <Box bg="gray.100" rounded="xl" overflow="hidden" position="relative" pt="100%">
-                {/* Fallback svg styling for poster */}
                 <Box
                   position="absolute"
                   top={0}
@@ -277,16 +398,18 @@ const InterparkHome = () => {
               </Box>
 
               <VStack align="start" spacing={2} mt={2}>
-                <Heading fontSize="20px" fontWeight="800" lineHeight="1.3">
+                <HStack>
+                  <Text fontSize="10px" bg="red.500" color="white" px={2} py={0.5} rounded="md" fontWeight="bold">
+                    단독판매
+                  </Text>
+                </HStack>
+                <Heading fontSize="18px" fontWeight="900" lineHeight="1.3" color="gray.900">
                   2026 N.Flying Concert '&con' in Seoul
                 </Heading>
 
-                <HStack justify="space-between" w="full" mt={2}>
-                  <Text fontSize="13px" bg="gray.100" px={3} py={1} rounded="md" color="gray.600">
-                    콘서트
-                  </Text>
+                <HStack justify="space-between" w="full" mt={1}>
                   <Text fontSize="13px" color="gray.500">
-                    만 9세이상
+                    콘서트 • 만 9세이상
                   </Text>
                 </HStack>
 
@@ -303,78 +426,15 @@ const InterparkHome = () => {
             </VStack>
           </Box>
 
-          {/* 달력 및 회차 선택 */}
+          {/* 달력 안내 미리보기 */}
           <Box bg="white" p={4} rounded="2xl" border="1px solid" borderColor="gray.100" shadow="sm">
-            <VStack spacing={4} align="stretch">
-              {/* 년/월 표시 */}
-              <HStack justify="center" spacing={4} py={1}>
-                <Text fontSize="16px" fontWeight="bold">
-                  {yearMonthStr}
-                </Text>
-              </HStack>
-
-              {/* 달력 그리드 */}
-              <Grid templateColumns="repeat(7, 1fr)" gap={1} textAlign="center" fontSize="13px">
-                {/* 요일 헤더 */}
-                {["일", "월", "화", "수", "목", "금", "토"].map((day, idx) => (
-                  <Text key={day} color={idx === 0 ? "red.500" : "gray.600"} fontWeight="bold" py={1}>
-                    {day}
-                  </Text>
-                ))}
-
-                {/* 날짜 데이터 */}
-                {calendarDays.map((item, idx) => (
-                  <Box key={idx} py={1.5} display="flex" justifyContent="center" alignItems="center">
-                    <Box
-                      w="30px"
-                      h="30px"
-                      display="flex"
-                      alignItems="center"
-                      justifyContent="center"
-                      rounded="full"
-                      fontSize="13px"
-                      fontWeight={item.isSelected || item.isCurrentMonth ? "600" : "normal"}
-                      color={
-                        item.isSelected
-                          ? "white"
-                          : !item.isCurrentMonth
-                            ? "gray.300"
-                            : item.isSunday
-                              ? "red.500"
-                              : "gray.700"
-                      }
-                      bg={item.isSelected ? "blue.600" : "transparent"}
-                    >
-                      {item.day}
-                    </Box>
-                  </Box>
-                ))}
-              </Grid>
-
-              <Divider my={1} />
-
-              {/* 회차 정보 */}
-              <VStack align="stretch" spacing={2}>
-                <Text fontSize="13px" fontWeight="bold" color="gray.700">
-                  회차 선택
-                </Text>
-                <Button
-                  variant="outline"
-                  borderColor="blue.500"
-                  color="blue.600"
-                  bg="blue.50"
-                  size="md"
-                  w="full"
-                  justifyContent="center"
-                  fontWeight="bold"
-                  rounded="xl"
-                >
-                  17:00 (1회차)
-                </Button>
-                <Text fontSize="12px" color="gray.500" textAlign="center" mt={1}>
-                  잔여석이 안내되지 않는 상품이에요.
-                </Text>
-              </VStack>
+            <VStack spacing={3} align="stretch">
+              <Text fontSize="14px" fontWeight="bold" color="gray.700">
+                관람일 안내
+              </Text>
+              <Text fontSize="13px" color="gray.500">
+                해당 티켓팅은 실전처럼 날짜 및 좌석 선택을 바로 진행하는 방식으로 구성되어 있습니다.
+              </Text>
             </VStack>
           </Box>
         </VStack>
@@ -383,30 +443,26 @@ const InterparkHome = () => {
       {/* 하단 고정 예매 버튼 */}
       <Box p={4} bg="white" borderTop="1px solid" borderColor="gray.200" position="sticky" bottom={0}>
         <VStack spacing={2} align="stretch">
-          {!isOpenTicket && isStarted && (
-            <Text fontSize="13px" color="red.500" fontWeight="bold" textAlign="center">
-              예매 오픈까지 {Math.ceil(timeLeft)}초 남음...
-            </Text>
-          )}
           {isOpenTicket && (
-            <Text fontSize="13px" color="green.600" fontWeight="bold" textAlign="center">
-              티켓팅이 오픈되었습니다! 예매하기 버튼을 누르세요.
+            <Text fontSize="12px" color="green.600" fontWeight="black" textAlign="center">
+              🎉 티켓팅이 오픈되었습니다! 예매하기 버튼을 누르세요.
             </Text>
           )}
-          {!isStarted && (
-            <Text fontSize="12px" color="gray.500" textAlign="center">
-              상단의 설정아이콘이나 시작 모달을 통해 연습을 구성하고 시작하세요.
+          {!isOpenTicket && isStarted && (
+            <Text fontSize="12px" color="red.500" fontWeight="bold" textAlign="center">
+              ⚠️ 시계가 20:00:00이 되면 우측 상단 새로고침을 누르세요!
             </Text>
           )}
           <Button
             w="full"
             h="54px"
-            bg={isOpenTicket ? "blue.600" : "gray.300"}
+            bg={isOpenTicket ? "#FF3838" : "gray.300"}
             color="white"
-            _hover={isOpenTicket ? { bg: "blue.700" } : {}}
-            _active={isOpenTicket ? { bg: "blue.800" } : {}}
-            isDisabled={!isOpenTicket}
-            fontWeight="bold"
+            _hover={isOpenTicket ? { bg: "#E02E2E" } : {}}
+            _active={isOpenTicket ? { bg: "#C22424" } : {}}
+            isDisabled={!isOpenTicket || isRefreshing}
+            isLoading={isRefreshing}
+            fontWeight="black"
             fontSize="18px"
             rounded="xl"
             onClick={handleBookingClick}
@@ -421,7 +477,7 @@ const InterparkHome = () => {
         <ModalOverlay bg="blackAlpha.700" backdropFilter="blur(3px)" />
         <ModalContent mx={4} rounded="2xl">
           <ModalHeader textAlign="center" borderBottom="1px solid" borderColor="gray.100">
-            티켓팅 연습 설정
+            티켓링크 연습 설정
           </ModalHeader>
           <ModalBody py={6}>
             <VStack spacing={6} align="stretch">
@@ -525,15 +581,40 @@ const InterparkHome = () => {
               <Button variant="outline" w="35%" size="lg" rounded="xl" onClick={() => navigate("/ticketing")} fontWeight="bold">
                 뒤로가기
               </Button>
-              <Button colorScheme="blue" w="65%" size="lg" rounded="xl" onClick={startSimulation} fontWeight="bold">
+              <Button colorScheme="red" bg="#FF3838" _hover={{ bg: "#E02E2E" }} w="65%" size="lg" rounded="xl" onClick={startSimulation} fontWeight="bold">
                 연습 시작하기
               </Button>
             </HStack>
           </ModalFooter>
         </ModalContent>
       </Modal>
+
+      {/* CSS Animation */}
+      <style>{`
+        @keyframes spin {
+          from { transform: rotate(0deg); }
+          to { transform: rotate(360deg); }
+        }
+        .spin-animation {
+          animation: spin 0.6s linear infinite;
+        }
+        @keyframes pulseGlow {
+          0%, 100% { box-shadow: 0 0 0 0 rgba(255, 56, 56, 0.7), 0 4px 15px rgba(255, 56, 56, 0.4); transform: scale(1); }
+          50% { box-shadow: 0 0 0 10px rgba(255, 56, 56, 0), 0 4px 25px rgba(255, 56, 56, 0.6); transform: scale(1.04); }
+        }
+        .pulse-animation {
+          animation: pulseGlow 1.1s ease-in-out infinite;
+        }
+        @keyframes bounceUp {
+          0%, 100% { transform: translateY(0); opacity: 1; }
+          50% { transform: translateY(-7px); opacity: 0.75; }
+        }
+        .bounce-up-animation {
+          animation: bounceUp 0.8s ease-in-out infinite;
+        }
+      `}</style>
     </VStack>
   );
 };
 
-export default InterparkHome;
+export default TicketlinkHome;

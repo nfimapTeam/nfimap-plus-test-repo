@@ -29,21 +29,21 @@ const TicketingMain = () => {
     {
       id: "ticketlink",
       name: "티켓링크",
-      description: "빠른 결제와 대기열 시스템. 스포츠 및 콘서트 특화 예매처 (준비 중)",
-      color: "gray",
+      description: "새로고침 타이밍과 대기열 시스템. 날짜/회차 선택과 구역 선택 없이 바로 클릭하는 직관적 예매 방식.",
+      color: "red",
       image: "/image/ticket/ticketlink.webp",
-      active: false,
-      path: "",
+      active: true,
+      path: "/ticketing/ticketlink",
     },
-    {
-      id: "melon",
-      name: "멜론티켓",
-      description: "동시 접속 대기열 순서제. 대기 번호와 좌석 선점 경쟁 (준비 중)",
-      color: "gray",
-      image: "/image/ticket/melon.webp",
-      active: false,
-      path: "",
-    },
+    // {
+    //   id: "melon",
+    //   name: "멜론티켓",
+    //   description: "동시 접속 대기열 순서제. 대기 번호와 좌석 선점 경쟁 (준비 중)",
+    //   color: "gray",
+    //   image: "/image/ticket/melon.webp",
+    //   active: false,
+    //   path: "",
+    // },
   ];
 
   return (

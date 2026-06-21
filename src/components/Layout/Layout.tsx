@@ -12,7 +12,7 @@ interface LayoutProps {
 const Layout = ({ children }: LayoutProps) => {
   const bg = useRecoilValue(bgColorState);
   const location = useLocation();
-  const isBookingPage = location.pathname === "/ticketing/interpark/booking";
+  const isBookingPage = location.pathname.endsWith("/booking");
 
   return (
     <Box 

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { Box, HStack, Text, Badge, VStack, Heading, Grid, Button, Image, useToast, IconButton } from "@chakra-ui/react";
-import { X, ArrowLeft } from "lucide-react";
+import { X, ArrowLeft, XCircle } from "lucide-react";
 import * as htmlToImage from "html-to-image";
 
 import CaptchaScreen from "./components/CaptchaScreen";
@@ -10,7 +10,7 @@ import StadiumMap from "./components/StadiumMap";
 import SeatMap from "./components/SeatMap";
 import { SectionSeatData, SeatData } from "./types";
 
-type BookingPhase = "queue" | "captcha" | "stadium" | "seat" | "success";
+type BookingPhase = "queue" | "captcha" | "stadium" | "seat" | "success" | "fail";
 
 interface DistractionEvent {
   id: string;
@@ -155,9 +155,14 @@ const InterparkBooking = () => {
 
   // Redirect to home if page is refreshed
   useEffect(() => {
-    const navs = performance.getEntriesByType("navigation");
-    if (navs.length > 0 && (navs[0] as PerformanceNavigationTiming).type === "reload") {
+    const isStarted = sessionStorage.getItem("interparkStarted");
+    if (!isStarted) {
       navigate("/ticketing/interpark");
+    } else {
+      // Clear after a brief delay to allow React Strict Mode double-mount in dev to pass
+      setTimeout(() => {
+        sessionStorage.removeItem("interparkStarted");
+      }, 100);
     }
   }, [navigate]);
 
@@ -217,7 +222,7 @@ const InterparkBooking = () => {
 
   // Central background seat depletion loop
   useEffect(() => {
-    if (phase === "queue" || phase === "success") return;
+    if (phase === "queue" || phase === "success" || phase === "fail") return;
 
     const isJaehyun = mode === "jaehyun";
     const isNboom = mode === "nboom";
@@ -243,14 +248,20 @@ const InterparkBooking = () => {
             const speedFactor = cfg ? (cfg.depleteSpeed / 20) : 1.0;
 
             // Seats to occupy in this tick
-            let baseNum = 0;
+            let numToOccupy = 0;
             if (isNboom) {
-              baseNum = Math.floor(Math.random() * 5) + 4; // 4 to 8 base
+              const baseNum = Math.floor(Math.random() * 5) + 4; // 4 to 8 base
+              numToOccupy = Math.floor(baseNum * speedFactor);
+            } else if (mode === "jaehyun") {
+              const delaySec = Math.max(0, delayMs / 1000);
+              const baseOccupancyPercent = Math.min(1.0, Math.max(0.0, 0.35 + delaySec * 0.18));
+              const approxInitialAvailable = (cfg?.initialSeats || 400) * (1 - baseOccupancyPercent);
+              const ticksIn60s = 60000 / tickTime; // 100 ticks
+              numToOccupy = Math.max(1, Math.round(approxInitialAvailable / ticksIn60s));
             } else {
-              baseNum = Math.floor(Math.random() * 2) + 1; // 1 to 2 base (Normal & Jaehyun)
+              const baseNum = Math.floor(Math.random() * 2) + 1; // 1 to 2 base (Normal)
+              numToOccupy = Math.floor(baseNum * speedFactor);
             }
-
-            const numToOccupy = Math.floor(baseNum * speedFactor);
 
             if (numToOccupy <= 0) return;
             anyChanged = true;
@@ -309,7 +320,7 @@ const InterparkBooking = () => {
       clearTimeout(startTimeout);
       if (intervalId) clearInterval(intervalId);
     };
-  }, [mode, phase === "queue", phase === "success"]);
+  }, [mode, phase, delayMs]);
 
   // Sync remaining seats counts in sections with detailedSeats
   useEffect(() => {
@@ -333,9 +344,39 @@ const InterparkBooking = () => {
     });
   }, [detailedSeats]);
 
+  // Check for failure (all seats sold out across all sections and no seat selected)
+  useEffect(() => {
+    if (phase !== "stadium" && phase !== "seat") return;
+
+    const sectionsKeys = Object.keys(detailedSeats);
+    if (sectionsKeys.length === 0) return;
+
+    let totalAvailable = 0;
+    sectionsKeys.forEach((secId) => {
+      const seatsList = detailedSeats[secId];
+      if (seatsList) {
+        totalAvailable += seatsList.filter((s) => s.status === "available").length;
+      }
+    });
+
+    let hasSelectedSeat = false;
+    sectionsKeys.forEach((secId) => {
+      const seatsList = detailedSeats[secId];
+      if (seatsList && seatsList.some((s) => s.status === "selected")) {
+        hasSelectedSeat = true;
+      }
+    });
+
+    if (totalAvailable === 0 && !hasSelectedSeat) {
+      const endTime = performance.now();
+      setElapsedTime((endTime - startTime) / 1000);
+      setPhase("fail");
+    }
+  }, [detailedSeats, phase, startTime]);
+
   // Distraction event spawner loop in Jaehyun Mode
   useEffect(() => {
-    if (mode !== "jaehyun" || phase === "success" || phase === "queue") {
+    if (mode !== "jaehyun" || phase === "success" || phase === "fail" || phase === "queue") {
       setDistractions([]);
       return;
     }
@@ -590,9 +631,7 @@ const InterparkBooking = () => {
   };
 
   const handleReset = () => {
-    const countdownDelayParam = searchParams.get("countdownDelay");
-    const countdownDelay = countdownDelayParam ? parseInt(countdownDelayParam, 10) : 3;
-    navigate(`/ticketing/interpark?mode=${mode}&delay=${countdownDelay}&autoStart=true`);
+    navigate(`/ticketing/interpark`);
   };
 
   const handleCloseBooking = () => {
@@ -1094,6 +1133,185 @@ const InterparkBooking = () => {
             >
               이미지 저장하기
             </Button>
+
+            {/* 제어 버튼 영역 */}
+            <VStack spacing={3} w="full">
+              <Button
+                colorScheme="blue"
+                w="full"
+                size="lg"
+                h="52px"
+                rounded="xl"
+                fontWeight="bold"
+                onClick={handleReset}
+                shadow="md"
+                _hover={{ bg: "blue.650" }}
+                _active={{ bg: "blue.700" }}
+              >
+                다시 도전하기
+              </Button>
+              <Button
+                variant="outline"
+                colorScheme="gray"
+                borderColor="gray.300"
+                w="full"
+                size="lg"
+                h="52px"
+                rounded="xl"
+                fontWeight="bold"
+                onClick={() => navigate("/ticketing")}
+                bg="white"
+                _hover={{ bg: "gray.50" }}
+              >
+                예매처 목록으로 가기
+              </Button>
+            </VStack>
+          </VStack>
+        )}
+
+        {phase === "fail" && (
+          <VStack spacing={6} py={8} px={5} align="stretch" h="full" justify="center" maxW="400px" mx="auto">
+            {/* 실패 배너 */}
+            <VStack spacing={2} align="center" textAlign="center" py={2}>
+              <Box
+                w="70px"
+                h="70px"
+                bg="red.50"
+                color="red.500"
+                rounded="full"
+                display="flex"
+                alignItems="center"
+                justifyContent="center"
+                shadow="md"
+              >
+                <XCircle size={40} />
+              </Box>
+              <Heading fontSize="22px" fontWeight="900" color="gray.800" mt={2}>
+                예매에 실패했습니다.
+              </Heading>
+              <Text fontSize="13px" color="gray.500">
+                선택 가능한 좌석이 모두 매진되었습니다.
+              </Text>
+            </VStack>
+
+            {/* 상세 티켓 명세 */}
+            <VStack
+              spacing={0}
+              bg="white"
+              rounded="2xl"
+              border="1px solid"
+              borderColor="gray.200"
+              shadow="lg"
+              overflow="hidden"
+              align="stretch"
+            >
+              {/* Ticket Header */}
+              <Box bgGradient="linear(to-r, red.500, red.600)" color="white" py={3.5} px={5} textAlign="center">
+                <Text fontSize="10px" fontWeight="black" letterSpacing="2px" opacity={0.9}>
+                  INTERPARK TICKET PRACTICE
+                </Text>
+                <Text fontSize="16px" fontWeight="950" mt={0.5} letterSpacing="0.5px">
+                  예매 실패 확인서
+                </Text>
+              </Box>
+
+              {/* Ticket Body */}
+              <VStack p={5} spacing={4} align="stretch" bg="white">
+                <VStack align="start" spacing={1}>
+                  <Text fontSize="11px" color="gray.400" fontWeight="bold">CONCERT</Text>
+                  <Text fontSize="15px" fontWeight="black" color="gray.800" lineHeight="1.3">
+                    2026 N.Flying Concert '&con' in Seoul
+                  </Text>
+                </VStack>
+
+                <Grid templateColumns="1fr 1fr" gap={4}>
+                  <VStack align="start" spacing={1}>
+                    <Text fontSize="11px" color="gray.400" fontWeight="bold">DATE</Text>
+                    <Text fontSize="13px" fontWeight="bold" color="gray.700">
+                      {formattedDateStr}
+                    </Text>
+                  </VStack>
+                  <VStack align="end" spacing={1}>
+                    <Text fontSize="11px" color="gray.400" fontWeight="bold">STADIUM</Text>
+                    <Text fontSize="13px" fontWeight="bold" color="gray.700" textAlign="right">
+                      N.Flying Hall
+                    </Text>
+                  </VStack>
+                </Grid>
+
+                <Grid templateColumns="1fr 1fr" gap={4}>
+                  <VStack align="start" spacing={1}>
+                    <Text fontSize="11px" color="gray.400" fontWeight="bold">SEAT</Text>
+                    <Text fontSize="14px" fontWeight="black" color="red.600">
+                      매진 (선택 가능한 좌석 없음)
+                    </Text>
+                  </VStack>
+                  <VStack align="end" spacing={1}>
+                    <Text fontSize="11px" color="gray.400" fontWeight="bold">MODE</Text>
+                    <Badge
+                      colorScheme={mode === "jaehyun" ? "purple" : mode === "nboom" ? "red" : "blue"}
+                      variant="solid"
+                      px={2.5}
+                      py={0.5}
+                      rounded="md"
+                    >
+                      {mode === "jaehyun" ? "대환장" : mode === "nboom" ? "엔붐온" : "일반"}
+                    </Badge>
+                  </VStack>
+                </Grid>
+              </VStack>
+
+              {/* Perforation Line Container */}
+              <Box position="relative" h="20px" bg="white">
+                {/* Left Circle Punch */}
+                <Box
+                  position="absolute"
+                  left="-10px"
+                  top="0"
+                  w="20px"
+                  h="20px"
+                  bg="gray.50"
+                  borderRadius="full"
+                  borderRight="1px solid"
+                  borderColor="gray.200"
+                  zIndex={5}
+                />
+                {/* Right Circle Punch */}
+                <Box
+                  position="absolute"
+                  right="-10px"
+                  top="0"
+                  w="20px"
+                  h="20px"
+                  bg="gray.50"
+                  borderRadius="full"
+                  borderLeft="1px solid"
+                  borderColor="gray.200"
+                  zIndex={5}
+                />
+                {/* Dashed Line */}
+                <Box
+                  position="absolute"
+                  left="15px"
+                  right="15px"
+                  top="9px"
+                  borderTop="2px dashed"
+                  borderColor="gray.200"
+                />
+              </Box>
+
+              {/* Ticket Stub (Receipt/Bottom Part) */}
+              <VStack p={5} spacing={3} align="stretch" bg="white">
+                <Box bg="red.50" border="1px solid" borderColor="red.100" p={4} rounded="xl" textAlign="center">
+                  <Text fontSize="11px" color="red.500" fontWeight="bold" letterSpacing="0.5px">
+                    진행 시간
+                  </Text>
+                  <Text fontSize="30px" fontWeight="950" color="red.650" fontFamily="monospace" mt={1} lineHeight="1">
+                    {elapsedTime.toFixed(2)}초
+                  </Text>
+                </Box>
+              </VStack>
+            </VStack>
 
             {/* 제어 버튼 영역 */}
             <VStack spacing={3} w="full">
