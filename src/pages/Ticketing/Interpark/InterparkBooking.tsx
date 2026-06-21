@@ -2,10 +2,11 @@ import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { Box, HStack, Text, Badge, VStack, Heading, Grid, Button, Image, useToast, IconButton } from "@chakra-ui/react";
 import { X, ArrowLeft, XCircle } from "lucide-react";
-import * as htmlToImage from "html-to-image";
+import { DISTRACTION_MEMBERS, YOUTUBE_CHANNELS, DistractionMember, getYoutubeReplyMessage } from "../constants";
 
 import CaptchaScreen from "./components/CaptchaScreen";
 import PuzzleScreen from "./components/PuzzleScreen";
+import NfiaAuthScreen from "./components/NfiaAuthScreen";
 import StadiumMap from "./components/StadiumMap";
 import SeatMap from "./components/SeatMap";
 import { SectionSeatData, SeatData } from "./types";
@@ -121,6 +122,13 @@ const InterparkBooking = () => {
   const [detailedSeats, setDetailedSeats] = useState<Record<string, SeatData[]>>({});
   const [showPuzzleOverlay, setShowPuzzleOverlay] = useState<boolean>(false);
   const [pendingAction, setPendingAction] = useState<(() => void) | null>(null);
+  const [activePuzzleType, setActivePuzzleType] = useState<"slider" | "nfia">("nfia");
+
+  useEffect(() => {
+    if (showPuzzleOverlay) {
+      setActivePuzzleType(Math.random() < 0.5 ? "slider" : "nfia");
+    }
+  }, [showPuzzleOverlay]);
   const [activeFullScreenDistraction, setActiveFullScreenDistraction] = useState<{
     type: "youtube" | "fromm";
     sender: string;
@@ -130,6 +138,7 @@ const InterparkBooking = () => {
   const [savedPhase, setSavedPhase] = useState<BookingPhase | null>(null);
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [yiseonjwaCount, setYiseonjwaCount] = useState<number>(0);
+  const [randomMember, setRandomMember] = useState<DistractionMember | null>(null);
 
   // Initialize state once at mount or reset
   const initializeBookingSession = useCallback(() => {
@@ -155,16 +164,23 @@ const InterparkBooking = () => {
 
   // Redirect to home if page is refreshed
   useEffect(() => {
-    const isStarted = sessionStorage.getItem("interparkStarted");
+    const isStarted = sessionStorage.getItem("nfiaparkStarted");
     if (!isStarted) {
-      navigate("/ticketing/interpark");
+      navigate("/ticketing/nfiapark");
     } else {
       // Clear after a brief delay to allow React Strict Mode double-mount in dev to pass
       setTimeout(() => {
-        sessionStorage.removeItem("interparkStarted");
+        sessionStorage.removeItem("nfiaparkStarted");
       }, 100);
     }
   }, [navigate]);
+
+  useEffect(() => {
+    if (phase === "success" && !randomMember && mode === "jaehyun") {
+      const idx = Math.floor(Math.random() * DISTRACTION_MEMBERS.length);
+      setRandomMember(DISTRACTION_MEMBERS[idx]);
+    }
+  }, [phase, mode, randomMember]);
 
 
   // Connection Queue states
@@ -227,8 +243,8 @@ const InterparkBooking = () => {
     const isJaehyun = mode === "jaehyun";
     const isNboom = mode === "nboom";
 
-    // Tick speed: 300ms for N-Boom-On (hard), 600ms for Normal & Jaehyun (slow)
-    const tickTime = isNboom ? 300 : 600;
+    // Tick speed: 70ms for N-Boom-On (hard) to ensure smooth cascading depletion, 400ms for Normal, 600ms for Jaehyun
+    const tickTime = isNboom ? 70 : mode === "normal" ? 400 : 600;
 
     let intervalId: NodeJS.Timeout | null = null;
 
@@ -250,8 +266,8 @@ const InterparkBooking = () => {
             // Seats to occupy in this tick
             let numToOccupy = 0;
             if (isNboom) {
-              const baseNum = Math.floor(Math.random() * 5) + 4; // 4 to 8 base
-              numToOccupy = Math.floor(baseNum * speedFactor);
+              const baseNum = Math.random() < 0.6 ? 1 : 2; // 1 to 2 base for smooth depletion
+              numToOccupy = Math.max(1, Math.round(baseNum * speedFactor));
             } else if (mode === "jaehyun") {
               const delaySec = Math.max(0, delayMs / 1000);
               const baseOccupancyPercent = Math.min(1.0, Math.max(0.0, 0.35 + delaySec * 0.18));
@@ -259,7 +275,7 @@ const InterparkBooking = () => {
               const ticksIn60s = 60000 / tickTime; // 100 ticks
               numToOccupy = Math.max(1, Math.round(approxInitialAvailable / ticksIn60s));
             } else {
-              const baseNum = Math.floor(Math.random() * 2) + 1; // 1 to 2 base (Normal)
+              const baseNum = Math.floor(Math.random() * 3) + 2; // 2 to 4 base (Harder Normal)
               numToOccupy = Math.floor(baseNum * speedFactor);
             }
 
@@ -297,7 +313,7 @@ const InterparkBooking = () => {
             }
 
             // Bot hijack selected seat in all modes
-            const hijackChance = isJaehyun ? 0.15 : isNboom ? 0.12 : 0.05;
+            const hijackChance = isJaehyun ? 0.15 : isNboom ? 0.18 : 0.05;
             if (Math.random() < hijackChance) {
               const selectedIdx = updatedSeats.findIndex((s) => s.status === "selected");
               if (selectedIdx !== -1) {
@@ -387,12 +403,7 @@ const InterparkBooking = () => {
 
       let newEvent: DistractionEvent;
       if (isYoutube) {
-        const channels = [
-          { name: "승협이", avatar: "/image/member/seunghyub.webp", content: "승협이의 깜짝 라이브 🎙️ - [LIVE] 엔피아 다들 모여라!" },
-          { name: "하루의 마무리", avatar: "/image/member/hewseung.webp", content: "오늘 하루도 수고했어.. 위로가 되는 노래 한 소절 🎵" },
-          { name: "두얼간이", avatar: "/image/member/jaehyun.webp", content: "훈이 재현이의 본격 먹방 투어! 맛집 대공개!! 🍗" }
-        ];
-        const selected = channels[Math.floor(Math.random() * channels.length)];
+        const selected = YOUTUBE_CHANNELS[Math.floor(Math.random() * YOUTUBE_CHANNELS.length)];
         newEvent = {
           id,
           type: "youtube",
@@ -403,61 +414,7 @@ const InterparkBooking = () => {
           xOffset: 0,
         };
       } else {
-        const members = [
-          {
-            name: "김재현 🥁",
-            avatar: "/image/member/jaehyun.webp",
-            messages: [
-              "엔피아 뭐해?",
-              "티켓팅중이구나 ㅎㅎ",
-              "나랑 놀자아아~",
-              "자리 좋은 데 잡아야해!! 🥁",
-              "두구두구두구... 과연 결과는?!",
-              "심심하다.. 나랑 수다 떨 사람 🙋",
-              "이번 콘서트 진짜 재밌을거야 ㅋㅋㅋ",
-              "올리브영 최고!"
-            ]
-          },
-          {
-            name: "서동성 🎸",
-            avatar: "/image/member/dongsung.webp",
-            messages: [
-              "행복한 주말 보내!",
-              "월요일 화이팅!!!",
-              "엔피아~",
-            ]
-          },
-          {
-            name: "먐미 🐱",
-            avatar: "/image/member/chahun.webp",
-            messages: [
-              "오늘 날씨 좋네 ☀️",
-              "로망이 사진 🐱",
-              "🥕🥕🥕🥕🥕🥕🥕🥕🥕🥕🥕🥕🥕🥕🥕🥕🥕🥕🥕🥕🥕🥕🥕🥕🥕🥕🥕🥕🥕🥕🥕🥕🥕🥕🥕🥕🥕",
-            ]
-          },
-          {
-            name: "이승협 🦁",
-            avatar: "/image/member/seunghyub.webp",
-            messages: [
-              "엔피아 밥 먹었어요? 🍚",
-              "오늘도 고마워요 💙",
-              "옥탑방 같이 들어요 🎵",
-              "티켓팅 화이팅!",
-            ]
-          },
-          {
-            name: "유회승 🎤",
-            avatar: "/image/member/hewseung.webp",
-            messages: [
-              "오늘 노래 연습 완료! 🎤",
-              "엔피아 보고 싶다아아아",
-              "감기 조심해요!! 🤧",
-              "1열 와서 내 목소리 직접 들어줘!",
-            ]
-          }
-        ];
-        const selectedMember = members[Math.floor(Math.random() * members.length)];
+        const selectedMember = DISTRACTION_MEMBERS[Math.floor(Math.random() * DISTRACTION_MEMBERS.length)];
         const msg = selectedMember.messages[Math.floor(Math.random() * selectedMember.messages.length)];
         const y = Math.floor(Math.random() * 200) + 120; // 120px - 320px down
         const x = Math.floor(Math.random() * 40) + 20;   // 20px - 60px margins
@@ -543,7 +500,8 @@ const InterparkBooking = () => {
     setYiseonjwaCount((prev) => {
       const next = prev + 1;
       if (next >= 3) {
-        setShowPuzzleOverlay(true);
+        setSelectedSection(null);
+        setPhase("captcha");
         return 0;
       }
       return next;
@@ -598,43 +556,19 @@ const InterparkBooking = () => {
     }
   };
 
-  const handleSaveImage = () => {
-    if (!receiptRef.current) return;
-
-    htmlToImage
-      .toPng(receiptRef.current, { cacheBust: true, backgroundColor: "#ffffff" })
-      .then((dataUrl) => {
-        const link = document.createElement("a");
-        link.download = `nfly-ticket-${Date.now()}.png`;
-        link.href = dataUrl;
-        link.click();
-        toast({
-          title: "이미지가 성공적으로 저장되었습니다!",
-          description: "다운로드 폴더를 확인해보세요.",
-          status: "success",
-          duration: 2500,
-          isClosable: true,
-          position: "top",
-        });
-      })
-      .catch((err) => {
-        console.error("Oops, something went wrong!", err);
-        toast({
-          title: "이미지 저장에 실패했습니다.",
-          description: "다시 시도해주세요.",
-          status: "error",
-          duration: 2500,
-          isClosable: true,
-          position: "top",
-        });
-      });
-  };
-
   const handleReset = () => {
-    navigate(`/ticketing/interpark`);
+    sessionStorage.removeItem("interpark_sim_is_started");
+    sessionStorage.removeItem("interpark_sim_difficulty");
+    sessionStorage.removeItem("interpark_sim_delay");
+    sessionStorage.removeItem("interpark_sim_start_time");
+    navigate(`/ticketing/nfiapark`);
   };
 
   const handleCloseBooking = () => {
+    sessionStorage.removeItem("interpark_sim_is_started");
+    sessionStorage.removeItem("interpark_sim_difficulty");
+    sessionStorage.removeItem("interpark_sim_delay");
+    sessionStorage.removeItem("interpark_sim_start_time");
     navigate("/ticketing");
   };
 
@@ -800,7 +734,7 @@ const InterparkBooking = () => {
       <Box bg="gray.900" color="white" py={3.5} px={4} borderBottom="3px solid" borderColor="blue.500">
         <HStack justify="space-between">
           <Text fontSize="15px" fontWeight="bold" letterSpacing="0.5px">
-            인터파크 티켓 예매 [연습]
+            엔피아파크 티켓 예매 [연습]
           </Text>
           <HStack spacing={3}>
             <Badge colorScheme={mode === "jaehyun" ? "purple" : mode === "nboom" ? "red" : "blue"} variant="solid" px={2} py={0.5} rounded="md">
@@ -816,7 +750,7 @@ const InterparkBooking = () => {
               alignItems="center"
               justifyContent="center"
               color="white"
-              _hover={{ color: "blue.400" }}
+              _hover={{ color: "red.400" }}
               _active={{ transform: "scale(0.9)" }}
             >
               <X size={20} />
@@ -948,7 +882,7 @@ const InterparkBooking = () => {
               {/* Ticket Header */}
               <Box bgGradient="linear(to-r, blue.500, blue.600)" color="white" py={3.5} px={5} textAlign="center">
                 <Text fontSize="10px" fontWeight="black" letterSpacing="2px" opacity={0.9}>
-                  INTERPARK TICKET PRACTICE
+                  ENFIAPARK TICKET PRACTICE
                 </Text>
                 <Text fontSize="16px" fontWeight="950" mt={0.5} letterSpacing="0.5px">
                   예매 성공 확인서
@@ -997,7 +931,7 @@ const InterparkBooking = () => {
                       fontSize="11px"
                       fontWeight="bold"
                     >
-                      {mode === "jaehyun" ? "대환장 모드 🤪" : mode === "nboom" ? "엔붐온 모드 ⚡" : "일반 모드 🔹"}
+                      {mode === "jaehyun" ? "대환장 모드 🤪" : mode === "nboom" ? "엔붐온 모드 ⚡" : "일반 모드 🔵"}
                     </Badge>
                   </VStack>
                 </Grid>
@@ -1064,6 +998,39 @@ const InterparkBooking = () => {
                   </Text>
                 </VStack>
               </VStack>
+
+              {/* Jaehyun Mode Congratulatory Card inside receipt */}
+              {mode === "jaehyun" && randomMember && (
+                <Box
+                  p={6}
+                  bg="purple.50"
+                  borderTop="2px dashed"
+                  borderColor="purple.200"
+                  display="flex"
+                  justifyContent="center"
+                  alignItems="center"
+                >
+                  <Box
+                    bg="white"
+                    p="12px"
+                    pb="32px"
+                    shadow="md"
+                    border="1px solid"
+                    borderColor="gray.200"
+                    maxW="180px"
+                    w="full"
+                  >
+                    <Image
+                      src={randomMember.avatar}
+                      w="100%"
+                      h="150px"
+                      objectFit="cover"
+                      border="1px solid"
+                      borderColor="gray.200"
+                    />
+                  </Box>
+                </Box>
+              )}
             </VStack>
 
             {/* 대환장 모드 서사 비하인드 카드 */}
@@ -1088,7 +1055,6 @@ const InterparkBooking = () => {
                     이 모드는 사실... 엔피아들이 한참 티켓팅에 집중하고 있을 때, 재현이가 프롬으로 채팅을 보내서 본의 아니게 방해 공작(?)을 펼쳤던 귀여운 실제 해프닝에서 영감을 받아 탄생한 모드예요!
                     <br /><br />
                     당시 재현이가 팬들과 수다 떨며 보낸 톡 메시지들이 바로 이 대환장 모드의 시초랍니다. 🤣
-                    그 험난한 알림 폭탄과 방해 요소를 다 이겨내고 끝내 예매에 성공하시다니 정말 대단해요! 진정한 금손 엔피아로 인정합니다! 🥳🎉
                   </Text>
                   <Box
                     rounded="xl"
@@ -1113,27 +1079,6 @@ const InterparkBooking = () => {
               </Box>
             )}
 
-            {/* 이미지 저장 버튼 영역 */}
-            <Button
-              colorScheme="teal"
-              leftIcon={
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                  <polyline points="7 10 12 15 17 10" />
-                  <line x1="12" y1="15" x2="12" y2="3" />
-                </svg>
-              }
-              rounded="xl"
-              fontWeight="bold"
-              fontSize="14px"
-              onClick={handleSaveImage}
-              shadow="sm"
-              h="48px"
-              w="full"
-            >
-              이미지 저장하기
-            </Button>
-
             {/* 제어 버튼 영역 */}
             <VStack spacing={3} w="full">
               <Button
@@ -1143,9 +1088,10 @@ const InterparkBooking = () => {
                 h="52px"
                 rounded="xl"
                 fontWeight="bold"
+                fontSize="16px"
                 onClick={handleReset}
                 shadow="md"
-                _hover={{ bg: "blue.650" }}
+                _hover={{ bg: "blue.600" }}
                 _active={{ bg: "blue.700" }}
               >
                 다시 도전하기
@@ -1154,16 +1100,24 @@ const InterparkBooking = () => {
                 variant="outline"
                 colorScheme="gray"
                 borderColor="gray.300"
+                color="gray.700"
                 w="full"
                 size="lg"
                 h="52px"
                 rounded="xl"
                 fontWeight="bold"
-                onClick={() => navigate("/ticketing")}
+                fontSize="16px"
+                onClick={() => {
+                  sessionStorage.removeItem("interpark_sim_is_started");
+                  sessionStorage.removeItem("interpark_sim_difficulty");
+                  sessionStorage.removeItem("interpark_sim_delay");
+                  sessionStorage.removeItem("interpark_sim_start_time");
+                  navigate("/");
+                }}
                 bg="white"
                 _hover={{ bg: "gray.50" }}
               >
-                예매처 목록으로 가기
+                홈으로 돌아가기
               </Button>
             </VStack>
           </VStack>
@@ -1176,8 +1130,8 @@ const InterparkBooking = () => {
               <Box
                 w="70px"
                 h="70px"
-                bg="red.50"
-                color="red.500"
+                bg="blue.50"
+                color="blue.500"
                 rounded="full"
                 display="flex"
                 alignItems="center"
@@ -1206,9 +1160,9 @@ const InterparkBooking = () => {
               align="stretch"
             >
               {/* Ticket Header */}
-              <Box bgGradient="linear(to-r, red.500, red.600)" color="white" py={3.5} px={5} textAlign="center">
+              <Box bgGradient="linear(to-r, blue.500, blue.600)" color="white" py={3.5} px={5} textAlign="center">
                 <Text fontSize="10px" fontWeight="black" letterSpacing="2px" opacity={0.9}>
-                  INTERPARK TICKET PRACTICE
+                  ENFIAPARK TICKET PRACTICE
                 </Text>
                 <Text fontSize="16px" fontWeight="950" mt={0.5} letterSpacing="0.5px">
                   예매 실패 확인서
@@ -1242,7 +1196,7 @@ const InterparkBooking = () => {
                 <Grid templateColumns="1fr 1fr" gap={4}>
                   <VStack align="start" spacing={1}>
                     <Text fontSize="11px" color="gray.400" fontWeight="bold">SEAT</Text>
-                    <Text fontSize="14px" fontWeight="black" color="red.600">
+                    <Text fontSize="14px" fontWeight="black" color="blue.600">
                       매진 (선택 가능한 좌석 없음)
                     </Text>
                   </VStack>
@@ -1302,11 +1256,11 @@ const InterparkBooking = () => {
 
               {/* Ticket Stub (Receipt/Bottom Part) */}
               <VStack p={5} spacing={3} align="stretch" bg="white">
-                <Box bg="red.50" border="1px solid" borderColor="red.100" p={4} rounded="xl" textAlign="center">
-                  <Text fontSize="11px" color="red.500" fontWeight="bold" letterSpacing="0.5px">
+                <Box bg="blue.50" border="1px solid" borderColor="blue.100" p={4} rounded="xl" textAlign="center">
+                  <Text fontSize="11px" color="blue.500" fontWeight="bold" letterSpacing="0.5px">
                     진행 시간
                   </Text>
-                  <Text fontSize="30px" fontWeight="950" color="red.650" fontFamily="monospace" mt={1} lineHeight="1">
+                  <Text fontSize="30px" fontWeight="950" color="blue.650" fontFamily="monospace" mt={1} lineHeight="1">
                     {elapsedTime.toFixed(2)}초
                   </Text>
                 </Box>
@@ -1333,16 +1287,24 @@ const InterparkBooking = () => {
                 variant="outline"
                 colorScheme="gray"
                 borderColor="gray.300"
+                color="gray.700"
                 w="full"
                 size="lg"
                 h="52px"
                 rounded="xl"
                 fontWeight="bold"
-                onClick={() => navigate("/ticketing")}
+                fontSize="16px"
+                onClick={() => {
+                  sessionStorage.removeItem("interpark_sim_is_started");
+                  sessionStorage.removeItem("interpark_sim_difficulty");
+                  sessionStorage.removeItem("interpark_sim_delay");
+                  sessionStorage.removeItem("interpark_sim_start_time");
+                  navigate("/");
+                }}
                 bg="white"
                 _hover={{ bg: "gray.50" }}
               >
-                예매처 목록으로 가기
+                홈으로 돌아가기
               </Button>
             </VStack>
           </VStack>
@@ -1364,7 +1326,11 @@ const InterparkBooking = () => {
             backdropFilter="blur(4px)"
           >
             <Box bg="white" rounded="2xl" shadow="2xl" maxW="400px" w="full" overflow="hidden">
-              <PuzzleScreen onSuccess={handlePuzzleOverlaySuccess} />
+              {mode === "jaehyun" && activePuzzleType === "nfia" ? (
+                <NfiaAuthScreen onSuccess={handlePuzzleOverlaySuccess} />
+              ) : (
+                <PuzzleScreen onSuccess={handlePuzzleOverlaySuccess} />
+              )}
             </Box>
           </Box>
         )}
@@ -1574,15 +1540,7 @@ const InterparkBooking = () => {
                         {activeFullScreenDistraction.sender}
                       </Text>
                       <Box bg="white" color="black" py={2} px={3} rounded="xl" roundedTopLeft="none" fontSize="12px" maxW="240px">
-                        {activeFullScreenDistraction.sender.includes("재현")
-                          ? "오오 진짜?? 미안 방해했네 ㅋㅋㅋ 대박 좋은 자리 잡아라 화이팅!! 🥳🥁"
-                          : activeFullScreenDistraction.sender.includes("동성")
-                            ? "앗 티켓팅 중이시구나! 제 기운을 받아서 꼭 1열 잡으세요!! 🎸🔥"
-                            : activeFullScreenDistraction.sender.includes("승협")
-                              ? "아 진짜요? 옥탑방 1열 가야죠!! 대박 파이팅!! 🦁💙"
-                              : activeFullScreenDistraction.sender.includes("회승")
-                                ? "와!! 티켓팅 대박 성공해서 제 고음 라이브 1열에서 들어줘요!! 🎤🔥"
-                                : "티켓팅 방해해서 미안해요. 꼭 좋은 좌석 예매 성공하시길 바랄게요! 🐱🍀"}
+                        {getYoutubeReplyMessage(activeFullScreenDistraction.sender)}
                       </Box>
                     </VStack>
                   </HStack>

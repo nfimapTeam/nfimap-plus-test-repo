@@ -23,9 +23,10 @@ import {
   Divider,
 } from "@chakra-ui/react";
 import { X, ArrowLeft, RefreshCw, ShieldCheck, CheckCircle2, XCircle } from "lucide-react";
-import * as htmlToImage from "html-to-image";
+import { DISTRACTION_MEMBERS, YOUTUBE_CHANNELS, DistractionMember, getYoutubeReplyMessage } from "../constants";
 
 import PuzzleScreen from "../Interpark/components/PuzzleScreen";
+import NfiaAuthScreen from "../Interpark/components/NfiaAuthScreen";
 
 // Define booking phases
 type BookingPhase = "queue" | "dateSelect" | "seatSelect" | "success" | "fail";
@@ -54,7 +55,7 @@ const TicketlinkBooking = () => {
   const toast = useToast();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  
+
   const mode = (searchParams.get("mode") as "normal" | "nboom" | "jaehyun") || "normal";
   const delayParam = searchParams.get("delay");
   const delayMs = delayParam ? parseInt(delayParam, 10) : 0;
@@ -75,6 +76,7 @@ const TicketlinkBooking = () => {
   const [elapsedTime, setElapsedTime] = useState<number>(0);
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [yiseonjwaCount, setYiseonjwaCount] = useState<number>(0);
+  const [randomMember, setRandomMember] = useState<DistractionMember | null>(null);
 
   // Seat layout grid state
   const [seats, setSeats] = useState<TicketlinkSeatData[]>([]);
@@ -87,6 +89,14 @@ const TicketlinkBooking = () => {
   const [distractions, setDistractions] = useState<DistractionEvent[]>([]);
   const [showPuzzleOverlay, setShowPuzzleOverlay] = useState<boolean>(false);
   const [pendingAction, setPendingAction] = useState<(() => void) | null>(null);
+  const [activePuzzleType, setActivePuzzleType] = useState<"slider" | "nfia">("nfia");
+
+  useEffect(() => {
+    if (showPuzzleOverlay) {
+      setActivePuzzleType(Math.random() < 0.5 ? "slider" : "nfia");
+    }
+  }, [showPuzzleOverlay]);
+
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [savedPhase, setSavedPhase] = useState<BookingPhase | null>(null);
   const [activeFullScreenDistraction, setActiveFullScreenDistraction] = useState<{
@@ -208,16 +218,23 @@ const TicketlinkBooking = () => {
 
   // Redirect to home if page is refreshed
   useEffect(() => {
-    const isStarted = sessionStorage.getItem("ticketlinkStarted");
+    const isStarted = sessionStorage.getItem("nfialinkStarted");
     if (!isStarted) {
-      navigate("/ticketing/ticketlink");
+      navigate("/ticketing/nfialink");
     } else {
       // Clear after a brief delay to allow React Strict Mode double-mount in dev to pass
       setTimeout(() => {
-        sessionStorage.removeItem("ticketlinkStarted");
+        sessionStorage.removeItem("nfialinkStarted");
       }, 100);
     }
   }, [navigate]);
+
+  useEffect(() => {
+    if (phase === "success" && !randomMember && mode === "jaehyun") {
+      const idx = Math.floor(Math.random() * DISTRACTION_MEMBERS.length);
+      setRandomMember(DISTRACTION_MEMBERS[idx]);
+    }
+  }, [phase, mode, randomMember]);
 
   // Generate a random 6-character captcha string
   const generateCaptchaText = () => {
@@ -318,6 +335,131 @@ const TicketlinkBooking = () => {
     drawCaptcha(newText);
   };
 
+  // Helper to deplete seats based on sorting priorities
+  const depleteSeats = useCallback((currentSeats: TicketlinkSeatData[], countToDeplete: number): TicketlinkSeatData[] => {
+    const availableSeats = currentSeats.filter((s) => s.status === "available");
+    if (availableSeats.length === 0 || countToDeplete <= 0) return currentSeats;
+
+    const rowNamesList = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O", "P", "Q", "R", "S", "T", "U", "V", "W", "X"];
+
+    // Sort available seats so front rows / floor seats sell out first (gradually top-to-bottom)
+    const sortedAvailable = [...availableSeats].sort((a, b) => {
+      const aIdx = rowNamesList.indexOf(a.rowName);
+      const bIdx = rowNamesList.indexOf(b.rowName);
+
+      const aGradeBonus = a.grade === "VIP" ? 40 : a.grade === "S" ? 20 : 0;
+      const bGradeBonus = b.grade === "VIP" ? 40 : b.grade === "S" ? 20 : 0;
+
+      const aRowScore = (24 - aIdx) * 2;
+      const bRowScore = (24 - bIdx) * 2;
+
+      let aSecBonus = 0;
+      if (a.sectionName === "다" || a.sectionName === "라") {
+        aSecBonus = 30; // Central VIP
+      } else if (a.sectionName === "가" || a.sectionName === "나" || a.sectionName === "마") {
+        aSecBonus = 15; // Side VIP
+      }
+
+      let bSecBonus = 0;
+      if (b.sectionName === "다" || b.sectionName === "라") {
+        bSecBonus = 30; // Central VIP
+      } else if (b.sectionName === "가" || b.sectionName === "나" || b.sectionName === "마") {
+        bSecBonus = 15; // Side VIP
+      }
+
+      // Add a significant random jitter to create a natural, organic depletion pattern
+      const aScore = aGradeBonus + aSecBonus + aRowScore + Math.random() * 180;
+      const bScore = bGradeBonus + bSecBonus + bRowScore + Math.random() * 180;
+
+      return bScore - aScore;
+    });
+
+    const updatedSeats = [...currentSeats];
+    const actualCount = Math.min(countToDeplete, sortedAvailable.length);
+    for (let i = 0; i < actualCount; i++) {
+      const seatToTake = sortedAvailable[i];
+      const idx = updatedSeats.findIndex((s) => s.id === seatToTake.id);
+      if (idx !== -1) {
+        updatedSeats[idx] = { ...updatedSeats[idx], status: "occupied" };
+      }
+    }
+    return updatedSeats;
+  }, []);
+
+  const getTickTimeAndDepleteCount = useCallback(() => {
+    const isNboom = mode === "nboom";
+    const isJaehyun = mode === "jaehyun";
+
+    // Nboom: 70ms for smooth cascading depletion, Jaehyun: 400ms, Normal: 500ms
+    const tickTime = isNboom ? 70 : isJaehyun ? 400 : 500;
+
+    let baseNum = 0;
+    if (isNboom) {
+      baseNum = Math.random() < 0.6 ? 1 : 2; // 1 to 2 base for smooth depletion
+    } else if (isJaehyun) {
+      baseNum = Math.random() < 0.15 ? 8 : 7; // Approx 7.15 seats/tick for full depletion in ~60s
+    } else {
+      baseNum = Math.floor(Math.random() * 4) + 3; // Normal mode: 3 to 6
+    }
+
+    return { tickTime, baseNum };
+  }, [mode]);
+
+  // Generate initial seat state (100% available at start, pre-depleted for delayMs)
+  const initializeSeats = useCallback(() => {
+    const isNboom = mode === "nboom";
+    const isJaehyun = mode === "jaehyun";
+
+    const generatedSeats: TicketlinkSeatData[] = [];
+    const sectionsConfig = [
+      { name: "가", grade: "VIP" as const, price: 154000, rows: 14, cols: 12 },
+      { name: "나", grade: "VIP" as const, price: 154000, rows: 14, cols: 12 },
+      { name: "다", grade: "VIP" as const, price: 154000, rows: 12, cols: 10 },
+      { name: "라", grade: "VIP" as const, price: 154000, rows: 12, cols: 12 },
+      { name: "마", grade: "VIP" as const, price: 154000, rows: 12, cols: 10 },
+      { name: "바", grade: "S" as const, price: 132000, rows: 24, cols: 4 },
+      { name: "사", grade: "A" as const, price: 110000, rows: 8, cols: 20 },
+      { name: "아", grade: "S" as const, price: 132000, rows: 24, cols: 4 },
+    ];
+
+    const rowNames = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O", "P", "Q", "R", "S", "T", "U", "V", "W", "X"];
+
+    sectionsConfig.forEach((sec) => {
+      rowNames.slice(0, sec.rows).forEach((row) => {
+        for (let col = 1; col <= sec.cols; col++) {
+          generatedSeats.push({
+            id: `TL-${sec.name}-${row}-${col}`,
+            sectionName: sec.name,
+            rowName: row,
+            colIndex: col,
+            status: "available",
+            grade: sec.grade,
+            price: sec.price,
+          });
+        }
+      });
+    });
+
+    let currentSeats = generatedSeats;
+    if (delayMs > 0) {
+      const { tickTime } = getTickTimeAndDepleteCount();
+      const numTicks = Math.floor(delayMs / tickTime);
+      for (let t = 0; t < numTicks; t++) {
+        let count = 0;
+        if (isNboom) {
+          count = Math.random() < 0.6 ? 1 : 2;
+        } else if (isJaehyun) {
+          count = Math.random() < 0.15 ? 8 : 7;
+        } else {
+          count = Math.floor(Math.random() * 4) + 3;
+        }
+        currentSeats = depleteSeats(currentSeats, count);
+      }
+    }
+
+    setSeats(currentSeats);
+  }, [mode, delayMs, getTickTimeAndDepleteCount, depleteSeats]);
+
   // Process connection queue if delay exists
   useEffect(() => {
     const delaySec = Math.max(0, delayMs / 1000);
@@ -332,6 +474,7 @@ const TicketlinkBooking = () => {
 
     if (qSize <= 0) {
       setPhase("dateSelect");
+      initializeSeats();
       return;
     }
 
@@ -352,168 +495,54 @@ const TicketlinkBooking = () => {
       if (tempQueue <= 0) {
         clearInterval(timer);
         setPhase("dateSelect");
+        initializeSeats();
       }
     }, tickInterval);
 
     return () => clearInterval(timer);
-  }, [delayMs]);
+  }, [delayMs, initializeSeats]);
 
-  // Generate initial seat state
-  const initializeSeats = useCallback(() => {
-    const delaySec = Math.max(0, delayMs / 1000);
-    const isNboom = mode === "nboom";
-    const isJaehyun = mode === "jaehyun";
-
-    // Occupancy baseline based on delay
-    let baseOccupancyPercent = 0;
-    if (isNboom) {
-      baseOccupancyPercent = 0.48 + delaySec * 0.29;
-    } else if (isJaehyun) {
-      baseOccupancyPercent = 0.42 + delaySec * 0.24;
-    } else {
-      baseOccupancyPercent = 0.38 + delaySec * 0.22;
-    }
-    baseOccupancyPercent = Math.min(1.0, Math.max(0.0, baseOccupancyPercent));
-
-    const generatedSeats: TicketlinkSeatData[] = [];
-    const sectionsConfig = [
-      { name: "가", grade: "VIP" as const, price: 154000, rows: 14, cols: 12 },
-      { name: "나", grade: "VIP" as const, price: 154000, rows: 14, cols: 12 },
-      { name: "다", grade: "VIP" as const, price: 154000, rows: 12, cols: 10 },
-      { name: "라", grade: "VIP" as const, price: 154000, rows: 12, cols: 12 },
-      { name: "마", grade: "VIP" as const, price: 154000, rows: 12, cols: 10 },
-      { name: "바", grade: "S" as const, price: 132000, rows: 24, cols: 4 },
-      { name: "사", grade: "A" as const, price: 110000, rows: 8, cols: 20 },
-      { name: "아", grade: "S" as const, price: 132000, rows: 24, cols: 4 },
-    ];
-
-    const rowNames = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O", "P", "Q", "R", "S", "T", "U", "V", "W", "X"];
-
-    sectionsConfig.forEach((sec) => {
-      rowNames.slice(0, sec.rows).forEach((row, rIdx) => {
-        const rowWeight = sec.rows - rIdx;
-        let occupancyProb = baseOccupancyPercent * (rowWeight / sec.rows) * 1.5;
-
-        // Front rows in Floor vanish quickly if delayed
-        if ((isNboom || isJaehyun) && sec.grade === "VIP" && delaySec > 0.8 && rIdx < 3) {
-          occupancyProb = 0.98;
-        }
-
-        const maxProb = (isNboom && delaySec > 1.5) ? 0.99 : 0.97;
-        const finalProb = Math.min(maxProb, Math.max(0.0, occupancyProb));
-
-        for (let col = 1; col <= sec.cols; col++) {
-          const status = Math.random() < finalProb ? "occupied" : "available";
-          generatedSeats.push({
-            id: `TL-${sec.name}-${row}-${col}`,
-            sectionName: sec.name,
-            rowName: row,
-            colIndex: col,
-            status,
-            grade: sec.grade,
-            price: sec.price,
-          });
-        }
-      });
-    });
-
-    setSeats(generatedSeats);
-  }, [mode, delayMs]);
-
-  // Handle seat layout depletion loop
+  // Handle seat layout depletion loop (runs continuously in background during dateSelect and seatSelect)
   useEffect(() => {
-    if (phase !== "seatSelect" || showCaptchaModal) return;
+    if (phase !== "dateSelect" && phase !== "seatSelect") return;
 
-    const isNboom = mode === "nboom";
-    const isJaehyun = mode === "jaehyun";
-    const tickTime = isNboom ? 200 : isJaehyun ? 400 : 500;
-
+    const { tickTime } = getTickTimeAndDepleteCount();
     let intervalId: NodeJS.Timeout | null = null;
 
-    // Ticketlink seat depletion must start 1.5s after seat mapping loads
-    const delayTimer = setTimeout(() => {
-      intervalId = setInterval(() => {
-        setSeats((prevSeats) => {
-          const availableSeats = prevSeats.filter((s) => s.status === "available");
-          if (availableSeats.length === 0) return prevSeats;
+    intervalId = setInterval(() => {
+      setSeats((prevSeats) => {
+        const availableSeats = prevSeats.filter((s) => s.status === "available");
+        if (availableSeats.length === 0) return prevSeats;
 
-          // Pick seat depletion size based on difficulty
-          let baseNum = 0;
-          if (isNboom) {
-            baseNum = Math.floor(Math.random() * 6) + 12; // 12 to 17 seats
-          } else if (isJaehyun) {
-            const delaySec = Math.max(0, delayMs / 1000);
-            const baseOccupancyPercent = Math.min(1.0, Math.max(0.0, 0.42 + delaySec * 0.24));
-            const approxInitialAvailable = 1072 * (1 - baseOccupancyPercent);
-            const ticksIn60s = 60000 / tickTime; // 150 ticks
-            baseNum = Math.max(1, Math.round(approxInitialAvailable / ticksIn60s));
-          } else {
-            baseNum = Math.floor(Math.random() * 4) + 3;  // 3 to 6 seats
+        let baseNum = 0;
+        if (mode === "nboom") {
+          baseNum = Math.random() < 0.6 ? 1 : 2;
+        } else if (mode === "jaehyun") {
+          baseNum = Math.random() < 0.15 ? 8 : 7;
+        } else {
+          baseNum = Math.floor(Math.random() * 4) + 3;
+        }
+
+        let updatedSeats = depleteSeats(prevSeats, baseNum);
+
+        // Random selected seat hijack (이선좌) chance
+        const hijackChance = mode === "jaehyun" ? 0.16 : mode === "nboom" ? 0.18 : 0.05;
+        if (Math.random() < hijackChance) {
+          const selectedIdx = updatedSeats.findIndex((s) => s.status === "selected");
+          if (selectedIdx !== -1) {
+            updatedSeats = [...updatedSeats];
+            updatedSeats[selectedIdx] = { ...updatedSeats[selectedIdx], status: "occupied" };
           }
+        }
 
-          const updatedSeats = [...prevSeats];
-          const rowNamesList = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O", "P", "Q", "R", "S", "T", "U", "V", "W", "X"];
-
-          // Sort available seats so front rows / floor seats sell out first (gradually top-to-bottom)
-          const sortedAvailable = [...availableSeats].sort((a, b) => {
-            const aIdx = rowNamesList.indexOf(a.rowName);
-            const bIdx = rowNamesList.indexOf(b.rowName);
-
-            const aGradeBonus = a.grade === "VIP" ? 200 : a.grade === "S" ? 100 : 0;
-            const bGradeBonus = b.grade === "VIP" ? 200 : b.grade === "S" ? 100 : 0;
-
-            const aRowScore = (24 - aIdx) * 10;
-            const bRowScore = (24 - bIdx) * 10;
-
-            let aSecBonus = 0;
-            if (a.sectionName === "가" || a.sectionName === "나") {
-              aSecBonus = 150;
-            } else if (a.sectionName === "다" || a.sectionName === "라" || a.sectionName === "마") {
-              aSecBonus = 70;
-            }
-
-            let bSecBonus = 0;
-            if (b.sectionName === "가" || b.sectionName === "나") {
-              bSecBonus = 150;
-            } else if (b.sectionName === "다" || b.sectionName === "라" || b.sectionName === "마") {
-              bSecBonus = 70;
-            }
-
-            // Combine with minor random jitter so it doesn't look perfectly robotic
-            const aScore = aGradeBonus + aSecBonus + aRowScore + Math.random() * 25;
-            const bScore = bGradeBonus + bSecBonus + bRowScore + Math.random() * 25;
-
-            return bScore - aScore;
-          });
-
-          const countToDeplete = Math.min(baseNum, sortedAvailable.length);
-          for (let i = 0; i < countToDeplete; i++) {
-            const seatToTake = sortedAvailable[i];
-            const idx = updatedSeats.findIndex((s) => s.id === seatToTake.id);
-            if (idx !== -1) {
-              updatedSeats[idx] = { ...updatedSeats[idx], status: "occupied" };
-            }
-          }
-
-          // Random selected seat hijack (이선좌) chance
-          const hijackChance = isJaehyun ? 0.16 : isNboom ? 0.12 : 0.05;
-          if (Math.random() < hijackChance) {
-            const selectedIdx = updatedSeats.findIndex((s) => s.status === "selected");
-            if (selectedIdx !== -1) {
-              updatedSeats[selectedIdx] = { ...updatedSeats[selectedIdx], status: "occupied" };
-            }
-          }
-
-          return updatedSeats;
-        });
-      }, tickTime);
-    }, 1500); // 1.5 seconds delay before start
+        return updatedSeats;
+      });
+    }, tickTime);
 
     return () => {
-      clearTimeout(delayTimer);
       if (intervalId) clearInterval(intervalId);
     };
-  }, [phase, showCaptchaModal, mode, delayMs]);
+  }, [phase, mode, getTickTimeAndDepleteCount, depleteSeats]);
 
   // Failure detection (all seats sold out and no seat selected)
   useEffect(() => {
@@ -527,7 +556,7 @@ const TicketlinkBooking = () => {
     }
   }, [seats, phase, selectedSeatId, showCaptchaModal, startTime]);
 
-  // Distraction event spawner (Crazy Mode)
+  // Distraction event spawner (Crazy)
   useEffect(() => {
     if (mode !== "jaehyun" || phase === "success" || phase === "fail" || phase === "queue" || showCaptchaModal) {
       setDistractions([]);
@@ -540,12 +569,7 @@ const TicketlinkBooking = () => {
 
       let newEvent: DistractionEvent;
       if (isYoutube) {
-        const channels = [
-          { name: "승협이", avatar: "/image/member/seunghyub.webp", content: "승협이의 깜짝 라이브 🎙️ - [LIVE] 엔피아 다들 모여라!" },
-          { name: "하루의 마무리", avatar: "/image/member/hewseung.webp", content: "오늘 하루도 수고했어.. 위로가 되는 노래 한 소절 🎵" },
-          { name: "두얼간이", avatar: "/image/member/jaehyun.webp", content: "훈이 재현이의 본격 먹방 투어! 맛집 대공개!! 🍗" }
-        ];
-        const selected = channels[Math.floor(Math.random() * channels.length)];
+        const selected = YOUTUBE_CHANNELS[Math.floor(Math.random() * YOUTUBE_CHANNELS.length)];
         newEvent = {
           id,
           type: "youtube",
@@ -556,61 +580,7 @@ const TicketlinkBooking = () => {
           xOffset: 0,
         };
       } else {
-        const members = [
-          {
-            name: "김재현 🥁",
-            avatar: "/image/member/jaehyun.webp",
-            messages: [
-              "엔피아 뭐해?",
-              "티켓팅중이구나 ㅎㅎ",
-              "나랑 놀자아아~",
-              "자리 좋은 데 잡아야해!! 🥁",
-              "두구두구두구... 과연 결과는?!",
-              "심심하다.. 나랑 수다 떨 사람 🙋",
-              "이번 콘서트 진짜 재밌을거야 ㅋㅋㅋ",
-              "올리브영 최고!"
-            ]
-          },
-          {
-            name: "서동성 🎸",
-            avatar: "/image/member/dongsung.webp",
-            messages: [
-              "행복한 주말 보내!",
-              "월요일 화이팅!!!",
-              "엔피아~",
-            ]
-          },
-          {
-            name: "먐미 🐱",
-            avatar: "/image/member/chahun.webp",
-            messages: [
-              "오늘 날씨 좋네 ☀️",
-              "로망이 사진 🐱",
-              "🥕🥕🥕🥕🥕🥕🥕🥕🥕🥕🥕🥕🥕🥕🥕🥕🥕🥕🥕🥕🥕🥕🥕🥕🥕🥕🥕🥕🥕🥕🥕🥕🥕",
-            ]
-          },
-          {
-            name: "이승협 🦁",
-            avatar: "/image/member/seunghyub.webp",
-            messages: [
-              "엔피아 밥 먹었어요? 🍚",
-              "오늘도 고마워요 💙",
-              "옥탑방 같이 들어요 🎵",
-              "티켓팅 화이팅!",
-            ]
-          },
-          {
-            name: "유회승 🎤",
-            avatar: "/image/member/hewseung.webp",
-            messages: [
-              "오늘 노래 연습 완료! 🎤",
-              "엔피아 보고 싶다아아아",
-              "감기 조심해요!! 🤧",
-              "1열 와서 내 목소리 직접 들어줘!",
-            ]
-          }
-        ];
-        const selectedMember = members[Math.floor(Math.random() * members.length)];
+        const selectedMember = DISTRACTION_MEMBERS[Math.floor(Math.random() * DISTRACTION_MEMBERS.length)];
         const msg = selectedMember.messages[Math.floor(Math.random() * selectedMember.messages.length)];
         const y = Math.floor(Math.random() * 200) + 120;
         const x = Math.floor(Math.random() * 40) + 20;
@@ -658,7 +628,7 @@ const TicketlinkBooking = () => {
   // Navigate to seat mapping phase and trigger Captcha modal
   const handleDateSelectNext = () => {
     if (!selectedDate || !selectedTime) return;
-    initializeSeats();
+    // Don't re-initialize seats here so the continuous depletion is preserved
     setPhase("seatSelect");
     setShowCaptchaModal(true);
 
@@ -694,17 +664,6 @@ const TicketlinkBooking = () => {
   const handleSeatClick = (seat: TicketlinkSeatData) => {
     if (dragMoveDetectedRef.current) return;
 
-    const blockListened = distractions.some((d) => d.type === "fromm");
-    if (blockListened) {
-      toast({
-        title: "화면에 표시된 프롬(fromm) 메시지를 먼저 닫아주세요!",
-        status: "warning",
-        duration: 1500,
-        position: "top",
-      });
-      return;
-    }
-
     if (seat.status === "occupied") return;
 
     setSeats((prevSeats) =>
@@ -726,7 +685,12 @@ const TicketlinkBooking = () => {
     setYiseonjwaCount((prev) => {
       const next = prev + 1;
       if (next >= 3) {
-        setShowPuzzleOverlay(true);
+        setShowCaptchaModal(true);
+        const captchaVal = generateCaptchaText();
+        setCaptchaText(captchaVal);
+        setTimeout(() => {
+          drawCaptcha(captchaVal);
+        }, 100);
         return 0;
       }
       return next;
@@ -798,36 +762,13 @@ const TicketlinkBooking = () => {
     }
   };
 
-  const handleSaveReceiptImage = () => {
-    if (!receiptRef.current) return;
-    htmlToImage
-      .toPng(receiptRef.current, { cacheBust: true, backgroundColor: "#ffffff" })
-      .then((dataUrl) => {
-        const link = document.createElement("a");
-        link.download = `ticketlink-receipt-${Date.now()}.png`;
-        link.href = dataUrl;
-        link.click();
-        toast({
-          title: "이미지가 성공적으로 저장되었습니다!",
-          description: "다운로드 폴더를 확인해보세요.",
-          status: "success",
-          duration: 2500,
-          position: "top",
-        });
-      })
-      .catch((err) => {
-        console.error(err);
-        toast({
-          title: "이미지 저장에 실패했습니다.",
-          status: "error",
-          duration: 2500,
-          position: "top",
-        });
-      });
-  };
-
   const handleRetrySimulation = () => {
-    navigate(`/ticketing/ticketlink`);
+    sessionStorage.removeItem("ticketlink_sim_is_started");
+    sessionStorage.removeItem("ticketlink_sim_difficulty");
+    sessionStorage.removeItem("ticketlink_sim_delay");
+    sessionStorage.removeItem("ticketlink_sim_start_time");
+    sessionStorage.removeItem("ticketlink_sim_offset");
+    navigate(`/ticketing/nfialink`);
   };
 
   // Get selected seat info text
@@ -936,7 +877,7 @@ const TicketlinkBooking = () => {
       w="full"
       mx="auto"
     >
-      {/* Distraction overlays (Crazy Mode) */}
+      {/* Distraction overlays (Crazy) */}
       {distractions.map((d) => {
         if (d.type === "youtube") {
           return (
@@ -1083,7 +1024,7 @@ const TicketlinkBooking = () => {
         <Box bg="#FF3838" color="white" py={3.5} px={4} borderBottom="2px solid" borderColor="red.650">
           <HStack justify="space-between">
             <Text fontSize="15px" fontWeight="black" letterSpacing="0.5px">
-              티켓링크 예매 [연습]
+              엔피아링크 예매 [연습]
             </Text>
             <HStack spacing={3}>
               <Badge colorScheme={mode === "jaehyun" ? "purple" : mode === "nboom" ? "orange" : "teal"} variant="solid" px={2.5} py={0.5} rounded="md">
@@ -1096,7 +1037,14 @@ const TicketlinkBooking = () => {
                 color="white"
                 _hover={{ bg: "red.600" }}
                 size="sm"
-                onClick={() => navigate("/ticketing/ticketlink")}
+                onClick={() => {
+                  sessionStorage.removeItem("ticketlink_sim_is_started");
+                  sessionStorage.removeItem("ticketlink_sim_difficulty");
+                  sessionStorage.removeItem("ticketlink_sim_delay");
+                  sessionStorage.removeItem("ticketlink_sim_start_time");
+                  sessionStorage.removeItem("ticketlink_sim_offset");
+                  navigate("/ticketing/nfialink");
+                }}
               />
             </HStack>
           </HStack>
@@ -1150,7 +1098,7 @@ const TicketlinkBooking = () => {
                 rounded="xl"
                 fontSize="14px"
                 fontWeight="bold"
-                onClick={() => navigate("/ticketing/ticketlink")}
+                onClick={() => navigate("/ticketing/nfialink")}
               >
                 닫기
               </Button>
@@ -1265,7 +1213,14 @@ const TicketlinkBooking = () => {
                   variant="ghost"
                   color="gray.600"
                   size="sm"
-                  onClick={() => navigate("/ticketing/ticketlink")}
+                  onClick={() => {
+                    sessionStorage.removeItem("ticketlink_sim_is_started");
+                    sessionStorage.removeItem("ticketlink_sim_difficulty");
+                    sessionStorage.removeItem("ticketlink_sim_delay");
+                    sessionStorage.removeItem("ticketlink_sim_start_time");
+                    sessionStorage.removeItem("ticketlink_sim_offset");
+                    navigate("/ticketing/nfialink");
+                  }}
                 />
               </HStack>
 
@@ -1470,7 +1425,7 @@ const TicketlinkBooking = () => {
                 >
                   STAGE
                 </Box>
-                 {/* Protrusion (runway) removed */}
+                {/* Protrusion (runway) removed */}
 
                 {/* Floor Sections */}
                 {/* 가 (Floor Top Left) */}
@@ -1846,12 +1801,46 @@ const TicketlinkBooking = () => {
 
                 <Box borderTop="1px solid" borderColor="gray.100" pt={4} textAlign="center">
                   <Text fontSize="11px" color="gray.400">
-                    본 확인서는 티켓링크 예매 시뮬레이터 연습 결과입니다.
+                    본 확인서는 엔피아링크 예매 시뮬레이터 연습 결과입니다.
                   </Text>
                 </Box>
+
+                {/* Jaehyun Mode Congratulatory Card inside receipt */}
+                {mode === "jaehyun" && randomMember && (
+                  <Box
+                    p={6}
+                    bg="purple.50"
+                    borderTop="2px dashed"
+                    borderColor="purple.200"
+                    mt={4}
+                    display="flex"
+                    justifyContent="center"
+                    alignItems="center"
+                  >
+                    <Box
+                      bg="white"
+                      p="12px"
+                      pb="32px"
+                      shadow="md"
+                      border="1px solid"
+                      borderColor="gray.200"
+                      maxW="180px"
+                      w="full"
+                    >
+                      <Image
+                        src={randomMember.avatar}
+                        w="100%"
+                        h="150px"
+                        objectFit="cover"
+                        border="1px solid"
+                        borderColor="gray.200"
+                      />
+                    </Box>
+                  </Box>
+                )}
               </Box>
 
-              {/* Distraction Backstory Card (Crazy Mode) */}
+              {/* Distraction Backstory Card (Crazy) */}
               {mode === "jaehyun" && (
                 <Box bg="purple.50" border="1px solid" borderColor="purple.200" p={5} rounded="2xl" shadow="sm">
                   <VStack spacing={4} align="stretch">
@@ -1865,7 +1854,6 @@ const TicketlinkBooking = () => {
                       이 모드는 사실... 엔피아들이 한참 티켓팅에 집중하고 있을 때, 재현이가 프롬으로 채팅을 보내서 본의 아니게 방해 공작(?)을 펼쳤던 귀여운 실제 해프닝에서 영감을 받아 탄생한 모드예요!
                       <br /><br />
                       당시 재현이가 팬들과 수다 떨며 보낸 톡 메시지들이 바로 이 대환장 모드의 시초랍니다. 🤣
-                      그 험난한 알림 폭탄과 방해 요소를 다 이겨내고 끝내 예매에 성공하시다니 정말 대단해요! 진정한 금손 엔피아로 인정합니다! 🥳🎉
                     </Text>
                     <Box
                       rounded="xl"
@@ -1890,55 +1878,45 @@ const TicketlinkBooking = () => {
                 </Box>
               )}
 
-              {/* Save image Button */}
-              <Button
-                colorScheme="red"
-                bg="#FF3838"
-                _hover={{ bg: "#E02E2E" }}
-                leftIcon={
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                    <polyline points="7 10 12 15 17 10" />
-                    <line x1="12" y1="15" x2="12" y2="3" />
-                  </svg>
-                }
-                rounded="xl"
-                fontWeight="black"
-                fontSize="14px"
-                onClick={handleSaveReceiptImage}
-                shadow="sm"
-                h="48px"
-                w="full"
-              >
-                예매 성공 확인서 이미지 저장하기
-              </Button>
-
               {/* Control Buttons */}
               <VStack spacing={3} w="full">
                 <Button
-                  colorScheme="gray"
+                  colorScheme="red"
+                  bg="#FF3838"
+                  _hover={{ bg: "#E02E2E" }}
+                  _active={{ bg: "#C22424" }}
+                  rounded="xl"
+                  fontWeight="black"
+                  fontSize="16px"
+                  onClick={handleRetrySimulation}
+                  h="52px"
+                  w="full"
+                  shadow="sm"
+                >
+                  다시 도전하기
+                </Button>
+                <Button
                   variant="outline"
+                  colorScheme="gray"
                   borderColor="gray.300"
                   color="gray.700"
                   rounded="xl"
-                  fontWeight="bold"
-                  fontSize="14px"
-                  onClick={handleRetrySimulation}
-                  h="48px"
+                  fontWeight="black"
+                  fontSize="16px"
+                  onClick={() => {
+                    sessionStorage.removeItem("ticketlink_sim_is_started");
+                    sessionStorage.removeItem("ticketlink_sim_difficulty");
+                    sessionStorage.removeItem("ticketlink_sim_delay");
+                    sessionStorage.removeItem("ticketlink_sim_start_time");
+                    sessionStorage.removeItem("ticketlink_sim_offset");
+                    navigate("/");
+                  }}
+                  h="52px"
                   w="full"
+                  bg="white"
+                  _hover={{ bg: "gray.50" }}
                 >
-                  다시하기
-                </Button>
-                <Button
-                  variant="ghost"
-                  color="gray.500"
-                  rounded="xl"
-                  fontWeight="bold"
-                  fontSize="13px"
-                  onClick={() => navigate("/ticketing")}
-                  w="full"
-                >
-                  메인으로 이동
+                  홈으로 돌아가기
                 </Button>
               </VStack>
             </VStack>
@@ -2006,7 +1984,7 @@ const TicketlinkBooking = () => {
 
                 <Box borderTop="1px solid" borderColor="gray.100" pt={4} textAlign="center">
                   <Text fontSize="11px" color="gray.400">
-                    본 확인서는 티켓링크 예매 시뮬레이터 연습 결과입니다.
+                    본 확인서는 엔피아링크 예매 시뮬레이터 연습 결과입니다.
                   </Text>
                 </Box>
               </Box>
@@ -2014,29 +1992,42 @@ const TicketlinkBooking = () => {
               {/* Control Buttons */}
               <VStack spacing={3} w="full">
                 <Button
-                  colorScheme="gray"
+                  colorScheme="red"
+                  bg="#FF3838"
+                  _hover={{ bg: "#E02E2E" }}
+                  _active={{ bg: "#C22424" }}
+                  rounded="xl"
+                  fontWeight="black"
+                  fontSize="16px"
+                  onClick={handleRetrySimulation}
+                  h="52px"
+                  w="full"
+                  shadow="sm"
+                >
+                  다시 도전하기
+                </Button>
+                <Button
                   variant="outline"
+                  colorScheme="gray"
                   borderColor="gray.300"
                   color="gray.700"
                   rounded="xl"
-                  fontWeight="bold"
-                  fontSize="14px"
-                  onClick={handleRetrySimulation}
-                  h="48px"
+                  fontWeight="black"
+                  fontSize="16px"
+                  onClick={() => {
+                    sessionStorage.removeItem("ticketlink_sim_is_started");
+                    sessionStorage.removeItem("ticketlink_sim_difficulty");
+                    sessionStorage.removeItem("ticketlink_sim_delay");
+                    sessionStorage.removeItem("ticketlink_sim_start_time");
+                    sessionStorage.removeItem("ticketlink_sim_offset");
+                    navigate("/");
+                  }}
+                  h="52px"
                   w="full"
+                  bg="white"
+                  _hover={{ bg: "gray.50" }}
                 >
-                  다시하기
-                </Button>
-                <Button
-                  variant="ghost"
-                  color="gray.500"
-                  rounded="xl"
-                  fontWeight="bold"
-                  fontSize="13px"
-                  onClick={() => navigate("/ticketing")}
-                  w="full"
-                >
-                  메인으로 이동
+                  홈으로 돌아가기
                 </Button>
               </VStack>
             </VStack>
@@ -2045,7 +2036,7 @@ const TicketlinkBooking = () => {
       </Box>
 
       {/* Local Coral/Pink Captcha Modal */}
-      <Modal isOpen={showCaptchaModal} onClose={() => {}} size="xs" isCentered closeOnOverlayClick={false}>
+      <Modal isOpen={showCaptchaModal} onClose={() => { }} size="xs" isCentered closeOnOverlayClick={false}>
         <ModalOverlay bg="blackAlpha.800" backdropFilter="blur(2px)" />
         <ModalContent rounded="2xl" border="1px solid" borderColor="red.100">
           <ModalHeader pb={0}>
@@ -2151,7 +2142,11 @@ const TicketlinkBooking = () => {
           backdropFilter="blur(4px)"
         >
           <Box bg="white" rounded="2xl" shadow="2xl" maxW="380px" w="full" overflow="hidden">
-            <PuzzleScreen onSuccess={handlePuzzleOverlaySuccess} />
+            {mode === "jaehyun" && activePuzzleType === "nfia" ? (
+              <NfiaAuthScreen onSuccess={handlePuzzleOverlaySuccess} />
+            ) : (
+              <PuzzleScreen onSuccess={handlePuzzleOverlaySuccess} />
+            )}
           </Box>
         </Box>
       )}
@@ -2361,15 +2356,7 @@ const TicketlinkBooking = () => {
                       {activeFullScreenDistraction.sender}
                     </Text>
                     <Box bg="white" color="black" py={2} px={3} rounded="xl" roundedTopLeft="none" fontSize="12px" maxW="240px">
-                      {activeFullScreenDistraction.sender.includes("재현")
-                        ? "오오 진짜?? 미안 방해했네 ㅋㅋㅋ 대박 좋은 자리 잡아라 화이팅!! 🥳🥁"
-                        : activeFullScreenDistraction.sender.includes("동성")
-                          ? "앗 티켓팅 중이시구나! 제 기운을 받아서 꼭 1열 잡으세요!! 🎸🔥"
-                          : activeFullScreenDistraction.sender.includes("승협")
-                            ? "아 진짜요? 옥탑방 1열 가야죠!! 대박 파이팅!! 🦁💙"
-                            : activeFullScreenDistraction.sender.includes("회승")
-                              ? "와!! 티켓팅 대박 성공해서 제 고음 라이브 1열에서 들어줘요!! 🎤🔥"
-                              : "티켓팅 방해해서 미안해요. 꼭 좋은 좌석 예매 성공하시길 바랄게요! 🐱🍀"}
+                      {getYoutubeReplyMessage(activeFullScreenDistraction.sender)}
                     </Box>
                   </VStack>
                 </HStack>

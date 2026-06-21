@@ -74,7 +74,7 @@ const Home = () => {
         >
           광고
         </Badge>
-        
+
         {/* 하단 투명 광고 문구 카피바 & 페이지 표시 */}
         <Box
           position="absolute"
@@ -228,7 +228,7 @@ const Home = () => {
                 예매 시뮬레이션
               </Text>
               <Text fontSize="14px" fontWeight="bold" color="gray.800" noOfLines={1}>
-                티켓 예매 연습소
+                티켓팅 연습
               </Text>
               <Text fontSize="11px" color="gray.500" noOfLines={1}>
                 안심코드 검증과 피켓팅 실전 환경 시뮬레이터

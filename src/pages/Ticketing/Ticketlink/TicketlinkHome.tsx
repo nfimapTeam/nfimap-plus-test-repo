@@ -46,36 +46,80 @@ const TicketlinkHome = () => {
   const openTimeOffsetRef = useRef<number>(0);
   const simulationStartRef = useRef<number>(0);
 
-  // Setup modal initially open unless autoStart is true
+  // Setup modal initially open unless autoStart is true or session exists
   useEffect(() => {
+    const hasSavedSession = sessionStorage.getItem("ticketlink_sim_is_started") === "true";
+    const savedDifficulty = sessionStorage.getItem("ticketlink_sim_difficulty") as "normal" | "nboom" | "jaehyun" | null;
+    const savedDelayStr = sessionStorage.getItem("ticketlink_sim_delay");
+    const savedStartTimeStr = sessionStorage.getItem("ticketlink_sim_start_time");
+    const savedOffsetStr = sessionStorage.getItem("ticketlink_sim_offset");
+
     const autoStart = searchParams.get("autoStart") === "true";
     const modeParam = searchParams.get("mode") as "normal" | "nboom" | "jaehyun";
     const delayParam = searchParams.get("delay");
 
-    if (autoStart && modeParam && delayParam) {
-      setDifficulty(modeParam);
-      const initialDelay = Number(delayParam);
-      setDelay(initialDelay);
+    let targetDifficulty: "normal" | "nboom" | "jaehyun" = "normal";
+    let targetDelay = 5;
+    let targetStartTime = 0;
+    let targetOffset = 0;
+    let shouldStart = false;
+
+    if (hasSavedSession && savedDifficulty && savedDelayStr && savedStartTimeStr && savedOffsetStr) {
+      targetDifficulty = savedDifficulty;
+      targetDelay = Number(savedDelayStr);
+      targetStartTime = Number(savedStartTimeStr);
+      targetOffset = Number(savedOffsetStr);
+      shouldStart = true;
+    } else if (autoStart && modeParam && delayParam) {
+      targetDifficulty = modeParam;
+      targetDelay = Number(delayParam);
+      targetStartTime = Date.now();
+      targetOffset = (Math.random() * 300) - 150; // -150ms to +150ms
+      shouldStart = true;
+
+      // Save initial simulation params to sessionStorage
+      sessionStorage.setItem("ticketlink_sim_is_started", "true");
+      sessionStorage.setItem("ticketlink_sim_difficulty", targetDifficulty);
+      sessionStorage.setItem("ticketlink_sim_delay", String(targetDelay));
+      sessionStorage.setItem("ticketlink_sim_start_time", String(targetStartTime));
+      sessionStorage.setItem("ticketlink_sim_offset", String(targetOffset));
+    }
+
+    if (shouldStart) {
+      setDifficulty(targetDifficulty);
+      setDelay(targetDelay);
       setIsStarted(true);
-      setIsOpenTicket(false);
       setShowGuide(true);
-      openTimeRef.current = null;
-      openTimeOffsetRef.current = (Math.random() * 300) - 150; // -150ms to +150ms
-      simulationStartRef.current = Date.now();
-      setTimeLeft(initialDelay);
+
+      openTimeOffsetRef.current = targetOffset;
+      simulationStartRef.current = targetStartTime;
+
+      const elapsedMs = Date.now() - targetStartTime;
+      const expectedOpenTime = targetStartTime + (targetDelay * 1000) + targetOffset;
+      const initialSecondsRemaining = targetDelay - (elapsedMs / 1000);
+
+      if (Date.now() >= expectedOpenTime) {
+        setIsOpenTicket(true);
+        setTimeLeft(0);
+        openTimeRef.current = expectedOpenTime;
+      } else {
+        setIsOpenTicket(false);
+        openTimeRef.current = null;
+        setTimeLeft(initialSecondsRemaining > 0 ? initialSecondsRemaining : 0);
+      }
 
       const startHour = 19;
       const startMin = 59;
-      const startSec = 60 - initialDelay;
+      const startSec = 60 - targetDelay;
       const baseMs = (startHour * 3600 + startMin * 60 + startSec) * 1000;
 
       if (timerRef.current) clearInterval(timerRef.current);
 
       timerRef.current = setInterval(() => {
-        const elapsedMs = Date.now() - simulationStartRef.current;
-        const secondsRemaining = initialDelay - (elapsedMs / 1000);
+        const currentElapsedMs = Date.now() - simulationStartRef.current;
+        const secondsRemaining = targetDelay - (currentElapsedMs / 1000);
 
-        const currentServerMs = baseMs + elapsedMs;
+        const currentServerMs = baseMs + currentElapsedMs;
         const ms = currentServerMs % 1000;
         const totalSecs = Math.floor(currentServerMs / 1000);
         const secs = totalSecs % 60;
@@ -92,10 +136,26 @@ const TicketlinkHome = () => {
 
         if (secondsRemaining <= 0) {
           if (!openTimeRef.current) {
-            openTimeRef.current = simulationStartRef.current + (initialDelay * 1000) + openTimeOffsetRef.current;
+            openTimeRef.current = simulationStartRef.current + (targetDelay * 1000) + openTimeOffsetRef.current;
           }
         }
       }, 30);
+
+      if (Date.now() >= expectedOpenTime) {
+        if (timerRef.current) clearInterval(timerRef.current);
+        const openServerMs = (20 * 3600 + 0 * 60 + 0) * 1000 + targetOffset;
+        const ms = Math.floor(openServerMs % 1000);
+        const totalSecs = Math.floor(openServerMs / 1000);
+        const secs = totalSecs % 60;
+        const totalMins = Math.floor(totalSecs / 60);
+        const mins = totalMins % 60;
+        const hours = Math.floor(totalMins / 60) % 24;
+
+        const formatTime = (h: number, m: number, s: number, milli: number) => {
+          return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}.${String(milli).padStart(3, "0")}`;
+        };
+        setCurrentTime(formatTime(hours, mins, secs, ms >= 0 ? ms : 0));
+      }
     } else {
       onOpen();
     }
@@ -111,6 +171,13 @@ const TicketlinkHome = () => {
     openTimeOffsetRef.current = (Math.random() * 300) - 150; // -150ms to +150ms
     simulationStartRef.current = Date.now();
     setTimeLeft(delay);
+
+    // Save simulation parameters to sessionStorage to persist across reloads
+    sessionStorage.setItem("ticketlink_sim_is_started", "true");
+    sessionStorage.setItem("ticketlink_sim_difficulty", difficulty);
+    sessionStorage.setItem("ticketlink_sim_delay", String(delay));
+    sessionStorage.setItem("ticketlink_sim_start_time", String(simulationStartRef.current));
+    sessionStorage.setItem("ticketlink_sim_offset", String(openTimeOffsetRef.current));
 
     const startHour = 19;
     const startMin = 59;
@@ -166,10 +233,14 @@ const TicketlinkHome = () => {
     setTimeout(() => {
       setIsRefreshing(false);
       setIsPageLoading(false);
-      // Check if open time has already passed
-      const now = Date.now();
-      const openTime = openTimeRef.current;
-      if (openTime && now >= openTime) {
+
+      // Evaluate if the refresh completed AFTER the actual open time (rendering finish)
+      const refreshEndTime = Date.now();
+      const expectedOpenTime = simulationStartRef.current + (delay * 1000) + openTimeOffsetRef.current;
+      const isCompletedAfterOpen = refreshEndTime >= expectedOpenTime;
+
+      // Only activate the booking button if refresh was completed after the open time
+      if (isCompletedAfterOpen) {
         setIsOpenTicket(true);
         if (timerRef.current) clearInterval(timerRef.current);
       }
@@ -181,8 +252,8 @@ const TicketlinkHome = () => {
     const clickTime = Date.now();
     const openTime = openTimeRef.current || clickTime;
     const delayMs = clickTime - openTime;
-    sessionStorage.setItem("ticketlinkStarted", "true");
-    navigate(`/ticketing/ticketlink/booking?mode=${difficulty}&delay=${delayMs}&countdownDelay=${delay}`);
+    sessionStorage.setItem("nfialinkStarted", "true");
+    navigate(`/ticketing/nfialink/booking?mode=${difficulty}&delay=${delayMs}&countdownDelay=${delay}`);
   };
 
   // Dynamic calendar states
@@ -255,7 +326,14 @@ const TicketlinkHome = () => {
             aria-label="뒤로가기"
             variant="ghost"
             rounded="full"
-            onClick={() => navigate("/ticketing")}
+            onClick={() => {
+              sessionStorage.removeItem("ticketlink_sim_is_started");
+              sessionStorage.removeItem("ticketlink_sim_difficulty");
+              sessionStorage.removeItem("ticketlink_sim_delay");
+              sessionStorage.removeItem("ticketlink_sim_start_time");
+              sessionStorage.removeItem("ticketlink_sim_offset");
+              navigate("/ticketing");
+            }}
           />
           <Heading fontSize="12px" fontWeight="bold" noOfLines={1} maxW="120px" color="gray.800">
             2026 N.Flying Concert '&con' in Seoul 🇰🇷 한국어
@@ -311,7 +389,7 @@ const TicketlinkHome = () => {
             <HStack spacing={1.5} color="red.100" justify="center">
               <Clock size={12} />
               <Text fontSize="10px" fontWeight="bold" letterSpacing="2px" color="rgba(255,255,255,0.75)">
-                티켓링크 실시간 서버 시계
+                엔피아링크 실시간 서버 시계
               </Text>
             </HStack>
             <Text
@@ -477,7 +555,7 @@ const TicketlinkHome = () => {
         <ModalOverlay bg="blackAlpha.700" backdropFilter="blur(3px)" />
         <ModalContent mx={4} rounded="2xl">
           <ModalHeader textAlign="center" borderBottom="1px solid" borderColor="gray.100">
-            티켓링크 연습 설정
+            엔피아링크 연습 설정
           </ModalHeader>
           <ModalBody py={6}>
             <VStack spacing={6} align="stretch">
@@ -535,7 +613,7 @@ const TicketlinkHome = () => {
                       onClick={() => setDifficulty("jaehyun")}
                     >
                       <Radio value="jaehyun" colorScheme="purple">
-                        <Text fontWeight="bold" fontSize="14px" color="purple.700">대환장 모드 (Crazy Mode)</Text>
+                        <Text fontWeight="bold" fontSize="14px" color="purple.700">대환장 모드 (Crazy)</Text>
                       </Radio>
                       <Text fontSize="12px" color="gray.500" pl={6} mt={1}>
                         프롬 채팅 및 유튜브 라이브 알림, 슬라이더 퍼즐 검증 등 온갖 극악의 방해 요소가 괴롭히는 대환장 파티입니다.
@@ -578,7 +656,21 @@ const TicketlinkHome = () => {
           </ModalBody>
           <ModalFooter borderTop="1px solid" borderColor="gray.100">
             <HStack spacing={3} w="full">
-              <Button variant="outline" w="35%" size="lg" rounded="xl" onClick={() => navigate("/ticketing")} fontWeight="bold">
+              <Button
+                variant="outline"
+                w="35%"
+                size="lg"
+                rounded="xl"
+                onClick={() => {
+                  sessionStorage.removeItem("ticketlink_sim_is_started");
+                  sessionStorage.removeItem("ticketlink_sim_difficulty");
+                  sessionStorage.removeItem("ticketlink_sim_delay");
+                  sessionStorage.removeItem("ticketlink_sim_start_time");
+                  sessionStorage.removeItem("ticketlink_sim_offset");
+                  navigate("/ticketing");
+                }}
+                fontWeight="bold"
+              >
                 뒤로가기
               </Button>
               <Button colorScheme="red" bg="#FF3838" _hover={{ bg: "#E02E2E" }} w="65%" size="lg" rounded="xl" onClick={startSimulation} fontWeight="bold">

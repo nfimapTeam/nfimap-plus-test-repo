@@ -19,21 +19,21 @@ const TicketingMain = () => {
   const ticketingSites = [
     {
       id: "interpark",
-      name: "인터파크 티켓",
+      name: "엔피아파크 티켓",
       description: "직관적이고 클래식한 예약 방식. 안심예매 코드 입력과 실시간 좌석 경쟁.",
-      color: "red",
+      color: "blue",
       image: "/image/ticket/interpark.webp",
       active: true,
-      path: "/ticketing/interpark",
+      path: "/ticketing/nfiapark",
     },
     {
       id: "ticketlink",
-      name: "티켓링크",
+      name: "엔피아링크",
       description: "새로고침 타이밍과 대기열 시스템. 날짜/회차 선택과 구역 선택 없이 바로 클릭하는 직관적 예매 방식.",
       color: "red",
       image: "/image/ticket/ticketlink.webp",
       active: true,
-      path: "/ticketing/ticketlink",
+      path: "/ticketing/nfialink",
     },
     // {
     //   id: "melon",
@@ -58,7 +58,7 @@ const TicketingMain = () => {
           onClick={() => navigate("/")}
         />
         <Heading fontSize="20px" fontWeight="700">
-          티켓팅 연습소
+          티켓팅 연습
         </Heading>
       </HStack>
 
@@ -109,7 +109,7 @@ const TicketingMain = () => {
                     {site.name}
                   </Text>
                   {site.active ? (
-                    <Badge colorScheme="red" variant="solid" rounded="md" px={2.5} py={0.5} fontWeight="bold">
+                    <Badge colorScheme={site.color} variant="solid" rounded="md" px={2.5} py={0.5} fontWeight="bold">
                       OPEN
                     </Badge>
                   ) : (

@@ -30,10 +30,10 @@ const App = () => {
           <Route path="/nfiti/ISF" element={<Share nfiti='ISF' />} />
           <Route path="/nfiti/INF" element={<Share nfiti='INF' />} />
           <Route path="/ticketing" element={<Ticketing />} />
-          <Route path="/ticketing/interpark" element={<InterparkHome />} />
-          <Route path="/ticketing/interpark/booking" element={<InterparkBooking />} />
-          <Route path="/ticketing/ticketlink" element={<TicketlinkHome />} />
-          <Route path="/ticketing/ticketlink/booking" element={<TicketlinkBooking />} />
+          <Route path="/ticketing/nfiapark" element={<InterparkHome />} />
+          <Route path="/ticketing/nfiapark/booking" element={<InterparkBooking />} />
+          <Route path="/ticketing/nfialink" element={<TicketlinkHome />} />
+          <Route path="/ticketing/nfialink/booking" element={<TicketlinkBooking />} />
           <Route path="/*" element={<NotFoundPage />} />
         </Routes>
       </Suspense>

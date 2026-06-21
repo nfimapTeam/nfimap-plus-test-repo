@@ -42,34 +42,72 @@ const InterparkHome = () => {
   const openTimeRef = useRef<number | null>(null);
   const simulationStartRef = useRef<number>(0);
 
-  // Setup modal initially open unless autoStart is true
+  // Setup modal initially open unless autoStart is true or session exists
   useEffect(() => {
+    const hasSavedSession = sessionStorage.getItem("interpark_sim_is_started") === "true";
+    const savedDifficulty = sessionStorage.getItem("interpark_sim_difficulty") as "normal" | "nboom" | "jaehyun" | null;
+    const savedDelayStr = sessionStorage.getItem("interpark_sim_delay");
+    const savedStartTimeStr = sessionStorage.getItem("interpark_sim_start_time");
+
     const autoStart = searchParams.get("autoStart") === "true";
     const modeParam = searchParams.get("mode") as "normal" | "nboom" | "jaehyun";
     const delayParam = searchParams.get("delay");
 
-    if (autoStart && modeParam && delayParam) {
-      setDifficulty(modeParam);
-      const initialDelay = Number(delayParam);
-      setDelay(initialDelay);
+    let targetDifficulty: "normal" | "nboom" | "jaehyun" = "normal";
+    let targetDelay = 5;
+    let targetStartTime = 0;
+    let shouldStart = false;
+
+    if (hasSavedSession && savedDifficulty && savedDelayStr && savedStartTimeStr) {
+      targetDifficulty = savedDifficulty;
+      targetDelay = Number(savedDelayStr);
+      targetStartTime = Number(savedStartTimeStr);
+      shouldStart = true;
+    } else if (autoStart && modeParam && delayParam) {
+      targetDifficulty = modeParam;
+      targetDelay = Number(delayParam);
+      targetStartTime = Date.now();
+      shouldStart = true;
+
+      // Save initial simulation params to sessionStorage
+      sessionStorage.setItem("interpark_sim_is_started", "true");
+      sessionStorage.setItem("interpark_sim_difficulty", targetDifficulty);
+      sessionStorage.setItem("interpark_sim_delay", String(targetDelay));
+      sessionStorage.setItem("interpark_sim_start_time", String(targetStartTime));
+    }
+
+    if (shouldStart) {
+      setDifficulty(targetDifficulty);
+      setDelay(targetDelay);
       setIsStarted(true);
-      setIsOpenTicket(false);
-      openTimeRef.current = null;
-      simulationStartRef.current = Date.now();
-      setTimeLeft(initialDelay);
+
+      const elapsedMs = Date.now() - targetStartTime;
+      const initialSecondsRemaining = targetDelay - (elapsedMs / 1000);
+
+      if (initialSecondsRemaining <= 0) {
+        setIsOpenTicket(true);
+        setTimeLeft(0);
+        openTimeRef.current = targetStartTime + (targetDelay * 1000);
+      } else {
+        setIsOpenTicket(false);
+        openTimeRef.current = null;
+        setTimeLeft(initialSecondsRemaining);
+      }
+
+      simulationStartRef.current = targetStartTime;
 
       const startHour = 19;
       const startMin = 59;
-      const startSec = 60 - initialDelay;
+      const startSec = 60 - targetDelay;
       const baseMs = (startHour * 3600 + startMin * 60 + startSec) * 1000;
 
       if (timerRef.current) clearInterval(timerRef.current);
 
       timerRef.current = setInterval(() => {
-        const elapsedMs = Date.now() - simulationStartRef.current;
-        const secondsRemaining = initialDelay - (elapsedMs / 1000);
+        const currentElapsedMs = Date.now() - simulationStartRef.current;
+        const secondsRemaining = targetDelay - (currentElapsedMs / 1000);
 
-        const currentServerMs = baseMs + elapsedMs;
+        const currentServerMs = baseMs + currentElapsedMs;
         const ms = currentServerMs % 1000;
         const totalSecs = Math.floor(currentServerMs / 1000);
         const secs = totalSecs % 60;
@@ -87,11 +125,17 @@ const InterparkHome = () => {
         if (secondsRemaining <= 0) {
           setIsOpenTicket(true);
           if (!openTimeRef.current) {
-            openTimeRef.current = simulationStartRef.current + (initialDelay * 1000);
+            openTimeRef.current = simulationStartRef.current + (targetDelay * 1000);
           }
           if (timerRef.current) clearInterval(timerRef.current);
         }
       }, 30);
+
+      // If open time has already passed, stop the countdown timer and set clock to 20:00:00.000
+      if (initialSecondsRemaining <= 0) {
+        if (timerRef.current) clearInterval(timerRef.current);
+        setCurrentTime("20:00:00.000");
+      }
     } else {
       onOpen();
     }
@@ -105,6 +149,12 @@ const InterparkHome = () => {
     openTimeRef.current = null;
     simulationStartRef.current = Date.now();
     setTimeLeft(delay);
+
+    // Save simulation parameters to sessionStorage to persist across reloads
+    sessionStorage.setItem("interpark_sim_is_started", "true");
+    sessionStorage.setItem("interpark_sim_difficulty", difficulty);
+    sessionStorage.setItem("interpark_sim_delay", String(delay));
+    sessionStorage.setItem("interpark_sim_start_time", String(simulationStartRef.current));
 
     const startHour = 19;
     const startMin = 59;
@@ -153,8 +203,8 @@ const InterparkHome = () => {
     const clickTime = Date.now();
     const openTime = openTimeRef.current || clickTime;
     const delayMs = clickTime - openTime;
-    sessionStorage.setItem("interparkStarted", "true");
-    navigate(`/ticketing/interpark/booking?mode=${difficulty}&delay=${delayMs}&countdownDelay=${delay}`);
+    sessionStorage.setItem("nfiaparkStarted", "true");
+    navigate(`/ticketing/nfiapark/booking?mode=${difficulty}&delay=${delayMs}&countdownDelay=${delay}`);
   };
 
   // Dynamic calendar states
@@ -229,7 +279,13 @@ const InterparkHome = () => {
             aria-label="뒤로가기"
             variant="ghost"
             rounded="full"
-            onClick={() => navigate("/ticketing")}
+            onClick={() => {
+              sessionStorage.removeItem("interpark_sim_is_started");
+              sessionStorage.removeItem("interpark_sim_difficulty");
+              sessionStorage.removeItem("interpark_sim_delay");
+              sessionStorage.removeItem("interpark_sim_start_time");
+              navigate("/ticketing");
+            }}
           />
           {isStarted && (
             <HStack bg="blue.50" color="blue.600" px={3} py={1.5} rounded="xl" spacing={2} border="1px solid" borderColor="blue.100">
@@ -384,7 +440,7 @@ const InterparkHome = () => {
       <Box p={4} bg="white" borderTop="1px solid" borderColor="gray.200" position="sticky" bottom={0}>
         <VStack spacing={2} align="stretch">
           {!isOpenTicket && isStarted && (
-            <Text fontSize="13px" color="red.500" fontWeight="bold" textAlign="center">
+            <Text fontSize="13px" color="blue.500" fontWeight="bold" text-align="center">
               예매 오픈까지 {Math.ceil(timeLeft)}초 남음...
             </Text>
           )}
@@ -421,7 +477,7 @@ const InterparkHome = () => {
         <ModalOverlay bg="blackAlpha.700" backdropFilter="blur(3px)" />
         <ModalContent mx={4} rounded="2xl">
           <ModalHeader textAlign="center" borderBottom="1px solid" borderColor="gray.100">
-            티켓팅 연습 설정
+            엔피아파크 연습 설정
           </ModalHeader>
           <ModalBody py={6}>
             <VStack spacing={6} align="stretch">
@@ -479,7 +535,7 @@ const InterparkHome = () => {
                       onClick={() => setDifficulty("jaehyun")}
                     >
                       <Radio value="jaehyun" colorScheme="purple">
-                        <Text fontWeight="bold" fontSize="14px" color="purple.700">대환장 모드 (Crazy Mode)</Text>
+                        <Text fontWeight="bold" fontSize="14px" color="purple.700">대환장 모드 (Crazy)</Text>
                       </Radio>
                       <Text fontSize="12px" color="gray.500" pl={6} mt={1}>
                         프롬 채팅 및 유튜브 라이브 알림, 슬라이더 퍼즐 검증 등 온갖 극악의 방해 요소가 괴롭히는 대환장 파티입니다.
@@ -522,7 +578,20 @@ const InterparkHome = () => {
           </ModalBody>
           <ModalFooter borderTop="1px solid" borderColor="gray.100">
             <HStack spacing={3} w="full">
-              <Button variant="outline" w="35%" size="lg" rounded="xl" onClick={() => navigate("/ticketing")} fontWeight="bold">
+              <Button
+                variant="outline"
+                w="35%"
+                size="lg"
+                rounded="xl"
+                onClick={() => {
+                  sessionStorage.removeItem("interpark_sim_is_started");
+                  sessionStorage.removeItem("interpark_sim_difficulty");
+                  sessionStorage.removeItem("interpark_sim_delay");
+                  sessionStorage.removeItem("interpark_sim_start_time");
+                  navigate("/ticketing");
+                }}
+                fontWeight="bold"
+              >
                 뒤로가기
               </Button>
               <Button colorScheme="blue" w="65%" size="lg" rounded="xl" onClick={startSimulation} fontWeight="bold">
