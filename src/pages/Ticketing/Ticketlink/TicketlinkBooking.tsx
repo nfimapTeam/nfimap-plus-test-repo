@@ -63,9 +63,12 @@ const TicketlinkBooking = () => {
   const countdownDelayParam = searchParams.get("countdownDelay");
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const countdownDelay = countdownDelayParam ? parseInt(countdownDelayParam, 10) : 5;
+  const failType = searchParams.get("failType");
 
   // Booking flow phases
-  const [phase, setPhase] = useState<BookingPhase>("queue");
+  const [phase, setPhase] = useState<BookingPhase>(() => {
+    return failType === "timeout" ? "fail" : "queue";
+  });
   const [selectedDate, setSelectedDate] = useState<string>("");
   const [selectedTime, setSelectedTime] = useState<string>("");
   const [showCaptchaModal, setShowCaptchaModal] = useState<boolean>(false);
@@ -74,6 +77,7 @@ const TicketlinkBooking = () => {
   // Time & Stats tracking
   const [startTime, setStartTime] = useState<number>(0);
   const [elapsedTime, setElapsedTime] = useState<number>(0);
+  const globalStartTimeRef = useRef<number>(performance.now());
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [yiseonjwaCount, setYiseonjwaCount] = useState<number>(0);
   const [randomMember, setRandomMember] = useState<DistractionMember | null>(null);
@@ -114,6 +118,9 @@ const TicketlinkBooking = () => {
 
   // Reference for receipt screenshot
   const receiptRef = useRef<HTMLDivElement | null>(null);
+
+  const [showRobotCaptchaModal, setShowRobotCaptchaModal] = useState<boolean>(false);
+  const initialAvailableSeatsCountRef = useRef<number>(0);
 
   // Zoom & Pan states
   const [scale, setScale] = useState<number>(1);
@@ -218,6 +225,7 @@ const TicketlinkBooking = () => {
 
   // Redirect to home if page is refreshed
   useEffect(() => {
+    sessionStorage.setItem("nfialink_entered_booking", "true");
     const isStarted = sessionStorage.getItem("nfialinkStarted");
     if (!isStarted) {
       navigate("/ticketing/nfialink");
@@ -230,9 +238,13 @@ const TicketlinkBooking = () => {
   }, [navigate]);
 
   useEffect(() => {
-    if (phase === "success" && !randomMember && mode === "jaehyun") {
-      const idx = Math.floor(Math.random() * DISTRACTION_MEMBERS.length);
-      setRandomMember(DISTRACTION_MEMBERS[idx]);
+    if (phase === "success" && !randomMember) {
+      if (mode === "jaehyun") {
+        setRandomMember(DISTRACTION_MEMBERS[0]);
+      } else {
+        const idx = Math.floor(Math.random() * DISTRACTION_MEMBERS.length);
+        setRandomMember(DISTRACTION_MEMBERS[idx]);
+      }
     }
   }, [phase, mode, randomMember]);
 
@@ -336,7 +348,7 @@ const TicketlinkBooking = () => {
   };
 
   // Helper to deplete seats based on sorting priorities
-  const depleteSeats = useCallback((currentSeats: TicketlinkSeatData[], countToDeplete: number): TicketlinkSeatData[] => {
+  const depleteSeats = useCallback((currentSeats: TicketlinkSeatData[], countToDeplete: number, isInitial: boolean = false): TicketlinkSeatData[] => {
     const availableSeats = currentSeats.filter((s) => s.status === "available");
     if (availableSeats.length === 0 || countToDeplete <= 0) return currentSeats;
 
@@ -347,29 +359,42 @@ const TicketlinkBooking = () => {
       const aIdx = rowNamesList.indexOf(a.rowName);
       const bIdx = rowNamesList.indexOf(b.rowName);
 
-      const aGradeBonus = a.grade === "VIP" ? 40 : a.grade === "S" ? 20 : 0;
-      const bGradeBonus = b.grade === "VIP" ? 40 : b.grade === "S" ? 20 : 0;
-
-      const aRowScore = (24 - aIdx) * 2;
-      const bRowScore = (24 - bIdx) * 2;
-
-      let aSecBonus = 0;
-      if (a.sectionName === "다" || a.sectionName === "라") {
-        aSecBonus = 30; // Central VIP
-      } else if (a.sectionName === "가" || a.sectionName === "나" || a.sectionName === "마") {
-        aSecBonus = 15; // Side VIP
+      if (isInitial) {
+        // During initial delay, deplete seats more evenly across the entire hall
+        // so sections '가' and '나' are not completely wiped out before entering
+        const aRowScore = (24 - aIdx) * 5;
+        const bRowScore = (24 - bIdx) * 5;
+        const aScore = aRowScore + Math.random() * 150;
+        const bScore = bRowScore + Math.random() * 150;
+        return bScore - aScore;
       }
 
-      let bSecBonus = 0;
-      if (b.sectionName === "다" || b.sectionName === "라") {
-        bSecBonus = 30; // Central VIP
-      } else if (b.sectionName === "가" || b.sectionName === "나" || b.sectionName === "마") {
-        bSecBonus = 15; // Side VIP
+      // Section Priority: "가" and "나" are highest, then other VIPs, then others
+      let aSecScore = 0;
+      if (a.sectionName === "가" || a.sectionName === "나") {
+        aSecScore = 300;
+      } else if (a.sectionName === "다" || a.sectionName === "라" || a.sectionName === "마") {
+        aSecScore = 200;
+      } else if (a.sectionName === "바" || a.sectionName === "아") {
+        aSecScore = 100;
       }
 
-      // Add a significant random jitter to create a natural, organic depletion pattern
-      const aScore = aGradeBonus + aSecBonus + aRowScore + Math.random() * 180;
-      const bScore = bGradeBonus + bSecBonus + bRowScore + Math.random() * 180;
+      let bSecScore = 0;
+      if (b.sectionName === "가" || b.sectionName === "나") {
+        bSecScore = 300;
+      } else if (b.sectionName === "다" || b.sectionName === "라" || b.sectionName === "마") {
+        bSecScore = 200;
+      } else if (b.sectionName === "바" || b.sectionName === "아") {
+        bSecScore = 100;
+      }
+
+      // Row Score: front rows have higher base score, but not strictly sequential
+      const aRowScore = (24 - aIdx) * 15;
+      const bRowScore = (24 - bIdx) * 15;
+
+      // Moderate jitter for natural but clearly top-biased depletion
+      const aScore = aSecScore + aRowScore + Math.random() * 150;
+      const bScore = bSecScore + bRowScore + Math.random() * 150;
 
       return bScore - aScore;
     });
@@ -390,8 +415,8 @@ const TicketlinkBooking = () => {
     const isNboom = mode === "nboom";
     const isJaehyun = mode === "jaehyun";
 
-    // Nboom: 70ms for smooth cascading depletion, Jaehyun: 400ms, Normal: 500ms
-    const tickTime = isNboom ? 70 : isJaehyun ? 400 : 500;
+    // Nboom: 70ms for smooth cascading depletion, Jaehyun: 400ms, Normal: 600ms
+    const tickTime = isNboom ? 70 : isJaehyun ? 400 : 600;
 
     let baseNum = 0;
     if (isNboom) {
@@ -399,7 +424,7 @@ const TicketlinkBooking = () => {
     } else if (isJaehyun) {
       baseNum = Math.random() < 0.15 ? 8 : 7; // Approx 7.15 seats/tick for full depletion in ~60s
     } else {
-      baseNum = Math.floor(Math.random() * 4) + 3; // Normal mode: 3 to 6
+      baseNum = Math.floor(Math.random() * 3) + 2; // Normal mode: 2 to 4
     }
 
     return { tickTime, baseNum };
@@ -442,19 +467,22 @@ const TicketlinkBooking = () => {
 
     let currentSeats = generatedSeats;
     if (delayMs > 0) {
-      const { tickTime } = getTickTimeAndDepleteCount();
-      const numTicks = Math.floor(delayMs / tickTime);
-      for (let t = 0; t < numTicks; t++) {
-        let count = 0;
+      const delaySec = delayMs / 1000;
+      let depletePercent = 0;
+      if (delaySec < 0.3) {
+        depletePercent = delaySec * 0.1; // very few seats gone if extremely fast
+      } else {
         if (isNboom) {
-          count = Math.random() < 0.6 ? 1 : 2;
+          depletePercent = 0.25 + (delaySec - 0.3) * 0.28;
         } else if (isJaehyun) {
-          count = Math.random() < 0.15 ? 8 : 7;
+          depletePercent = 0.20 + (delaySec - 0.3) * 0.22;
         } else {
-          count = Math.floor(Math.random() * 4) + 3;
+          depletePercent = 0.05 + (delaySec - 0.3) * 0.08;
         }
-        currentSeats = depleteSeats(currentSeats, count);
       }
+      depletePercent = Math.min(1.0, Math.max(0.0, depletePercent));
+      const countToDeplete = Math.floor(generatedSeats.length * depletePercent);
+      currentSeats = depleteSeats(generatedSeats, countToDeplete, true);
     }
 
     setSeats(currentSeats);
@@ -462,6 +490,10 @@ const TicketlinkBooking = () => {
 
   // Process connection queue if delay exists
   useEffect(() => {
+    if (failType === "timeout") {
+      setPhase("fail");
+      return;
+    }
     const delaySec = Math.max(0, delayMs / 1000);
     let qSize = 0;
     if (delaySec >= 0.25) {
@@ -506,7 +538,7 @@ const TicketlinkBooking = () => {
   useEffect(() => {
     if (phase !== "dateSelect" && phase !== "seatSelect") return;
 
-    const { tickTime } = getTickTimeAndDepleteCount();
+    const intervalTime = phase === "seatSelect" ? 100 : 500;
     let intervalId: NodeJS.Timeout | null = null;
 
     intervalId = setInterval(() => {
@@ -514,20 +546,26 @@ const TicketlinkBooking = () => {
         const availableSeats = prevSeats.filter((s) => s.status === "available");
         if (availableSeats.length === 0) return prevSeats;
 
-        let baseNum = 0;
-        if (mode === "nboom") {
-          baseNum = Math.random() < 0.6 ? 1 : 2;
-        } else if (mode === "jaehyun") {
-          baseNum = Math.random() < 0.15 ? 8 : 7;
+        let countToDeplete = 0;
+        if (phase === "seatSelect") {
+          const elapsed = (performance.now() - startTime) / 1000;
+          const targetDuration = mode === "nboom" ? 30 : mode === "jaehyun" ? 60 : 180;
+          const targetDepletedRatio = Math.min(1.0, elapsed / targetDuration);
+          const targetOccupiedCount = Math.round(initialAvailableSeatsCountRef.current * targetDepletedRatio);
+          const targetAvailableCount = Math.max(0, initialAvailableSeatsCountRef.current - targetOccupiedCount);
+          countToDeplete = availableSeats.length - targetAvailableCount;
         } else {
-          baseNum = Math.floor(Math.random() * 4) + 3;
+          // Slowly deplete during dateSelect phase
+          countToDeplete = Math.random() < 0.3 ? 1 : 0;
         }
 
-        let updatedSeats = depleteSeats(prevSeats, baseNum);
+        if (countToDeplete <= 0) return prevSeats;
 
-        // Random selected seat hijack (이선좌) chance
-        const hijackChance = mode === "jaehyun" ? 0.16 : mode === "nboom" ? 0.18 : 0.05;
-        if (Math.random() < hijackChance) {
+        let updatedSeats = depleteSeats(prevSeats, countToDeplete);
+
+        // Random selected seat hijack (이선좌) chance (only in jaehyun mode)
+        const hijackChance = mode === "jaehyun" ? 0.05 : 0;
+        if (hijackChance > 0 && Math.random() < hijackChance) {
           const selectedIdx = updatedSeats.findIndex((s) => s.status === "selected");
           if (selectedIdx !== -1) {
             updatedSeats = [...updatedSeats];
@@ -537,7 +575,7 @@ const TicketlinkBooking = () => {
 
         return updatedSeats;
       });
-    }, tickTime);
+    }, intervalTime);
 
     return () => {
       if (intervalId) clearInterval(intervalId);
@@ -550,7 +588,7 @@ const TicketlinkBooking = () => {
       const availableCount = seats.filter((s) => s.status === "available").length;
       if (availableCount === 0 && !selectedSeatId) {
         const endTime = performance.now();
-        setElapsedTime((endTime - startTime) / 1000);
+        setElapsedTime((delayMs / 1000) + ((endTime - globalStartTimeRef.current) / 1000));
         setPhase("fail");
       }
     }
@@ -582,8 +620,8 @@ const TicketlinkBooking = () => {
       } else {
         const selectedMember = DISTRACTION_MEMBERS[Math.floor(Math.random() * DISTRACTION_MEMBERS.length)];
         const msg = selectedMember.messages[Math.floor(Math.random() * selectedMember.messages.length)];
-        const y = Math.floor(Math.random() * 200) + 120;
-        const x = Math.floor(Math.random() * 40) + 20;
+        const y = Math.floor(Math.random() * 500) + 150; // Randomly spread across the seat map height
+        const x = Math.floor(Math.random() * 100) + 10; // Randomly spread horizontally
         newEvent = {
           id,
           type: "fromm",
@@ -595,7 +633,10 @@ const TicketlinkBooking = () => {
         };
       }
 
-      setDistractions((prev) => [...prev, newEvent]);
+      setDistractions((prev) => {
+        if (prev.length >= 7) return prev;
+        return [...prev, newEvent];
+      });
 
       if (newEvent.type === "youtube") {
         setTimeout(() => {
@@ -605,8 +646,8 @@ const TicketlinkBooking = () => {
     };
 
     const triggerNext = () => {
-      // 80% frequency adjustment
-      const nextDelay = (Math.random() * 1200 + 800) * 1.25;
+      // 80% of current frequency
+      const nextDelay = (Math.random() * 1200 + 800) * 1.5625;
       return setTimeout(() => {
         spawnDistraction();
         timerId = triggerNext();
@@ -631,6 +672,8 @@ const TicketlinkBooking = () => {
     // Don't re-initialize seats here so the continuous depletion is preserved
     setPhase("seatSelect");
     setShowCaptchaModal(true);
+    setCaptchaInput("");
+    setCaptchaError("");
 
     const captchaVal = generateCaptchaText();
     setCaptchaText(captchaVal);
@@ -639,12 +682,15 @@ const TicketlinkBooking = () => {
     }, 120);
 
     setStartTime(performance.now());
+    initialAvailableSeatsCountRef.current = seats.filter(s => s.status === "available").length;
   };
 
   const handleCaptchaSubmit = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     if (captchaInput.toUpperCase() === captchaText) {
       setShowCaptchaModal(false);
+      setStartTime(performance.now());
+      initialAvailableSeatsCountRef.current = seats.filter(s => s.status === "available").length;
       toast({
         title: "인증되었습니다.",
         status: "success",
@@ -685,12 +731,7 @@ const TicketlinkBooking = () => {
     setYiseonjwaCount((prev) => {
       const next = prev + 1;
       if (next >= 3) {
-        setShowCaptchaModal(true);
-        const captchaVal = generateCaptchaText();
-        setCaptchaText(captchaVal);
-        setTimeout(() => {
-          drawCaptcha(captchaVal);
-        }, 100);
+        setShowRobotCaptchaModal(true);
         return 0;
       }
       return next;
@@ -725,7 +766,7 @@ const TicketlinkBooking = () => {
       const isJaehyun = mode === "jaehyun";
 
       // Bot hijack seat (이선좌) check on submission
-      const hijackChance = isJaehyun ? 0.75 : isNboom ? 0.28 : 0.08;
+      const hijackChance = isJaehyun ? 0.80 : isNboom ? 0.20 : 0.05;
       let isHijacked = false;
       if (Math.random() < hijackChance) {
         isHijacked = true;
@@ -737,7 +778,7 @@ const TicketlinkBooking = () => {
           prev.map((s) => (s.id === selectedSeatId ? { ...s, status: "occupied" } : s))
         );
         toast({
-          title: "이미 선택된 좌석입니다. (이선좌)",
+          title: "이미 선택된 좌석입니다.",
           description: "예매 진행 도중 다른 예매자가 먼저 결제창에 진입했습니다.",
           status: "error",
           duration: 2500,
@@ -750,16 +791,11 @@ const TicketlinkBooking = () => {
 
       // Successful Booking!
       const endTime = performance.now();
-      setElapsedTime((endTime - startTime) / 1000);
+      setElapsedTime((delayMs / 1000) + ((endTime - globalStartTimeRef.current) / 1000));
       setPhase("success");
     };
 
-    if (mode === "jaehyun" && Math.random() < 0.6) {
-      setPendingAction(() => action);
-      setShowPuzzleOverlay(true);
-    } else {
-      action();
-    }
+    action();
   };
 
   const handleRetrySimulation = () => {
@@ -768,6 +804,8 @@ const TicketlinkBooking = () => {
     sessionStorage.removeItem("ticketlink_sim_delay");
     sessionStorage.removeItem("ticketlink_sim_start_time");
     sessionStorage.removeItem("ticketlink_sim_offset");
+    sessionStorage.removeItem("nfialink_entered_booking");
+    sessionStorage.removeItem("nfialinkStarted");
     navigate(`/ticketing/nfialink`);
   };
 
@@ -959,15 +997,14 @@ const TicketlinkBooking = () => {
               top={`${d.yOffset}px`}
               left={`${d.xOffset}px`}
               right={`${d.xOffset}px`}
-              bg="purple.850"
-              bgGradient="linear(to-br, purple.700, indigo.800)"
+              bg="gray.900"
               color="white"
               p={3}
               rounded="2xl"
               shadow="2xl"
               zIndex={200}
               border="1.5px solid"
-              borderColor="purple.400"
+              borderColor="gray.700"
               animation="popIn 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275)"
               backdropFilter="blur(6px)"
               cursor="pointer"
@@ -989,13 +1026,13 @@ const TicketlinkBooking = () => {
                 }
               `}</style>
               <HStack spacing={3} align="start">
-                <Image src={d.avatar} w="36px" h="36px" rounded="full" objectFit="cover" border="2px solid" borderColor="purple.300" flexShrink={0} />
+                <Image src={d.avatar} w="36px" h="36px" rounded="full" objectFit="cover" border="2px solid" borderColor="gray.600" flexShrink={0} />
                 <VStack align="start" spacing={0.5} flex={1}>
                   <HStack w="full" justify="space-between">
-                    <Text fontSize="10px" fontWeight="extrabold" color="purple.200" letterSpacing="0.3px">
+                    <Text fontSize="10px" fontWeight="extrabold" color="gray.300" letterSpacing="0.3px">
                       fromm • {d.sender}
                     </Text>
-                    <Text fontSize="8px" color="purple.300">1분 전</Text>
+                    <Text fontSize="8px" color="gray.500">1분 전</Text>
                   </HStack>
                   <Text fontSize="11px" fontWeight="black" color="white" lineHeight="1.3">
                     {d.content}
@@ -1007,7 +1044,7 @@ const TicketlinkBooking = () => {
                     e.stopPropagation();
                     setDistractions((prev) => prev.filter((item) => item.id !== d.id));
                   }}
-                  color="purple.300"
+                  color="gray.500"
                   _hover={{ color: "white" }}
                   p={1}
                 >
@@ -1235,7 +1272,7 @@ const TicketlinkBooking = () => {
               <Box borderTop="1px solid" borderColor="gray.150" bg="white" px={4} py={2.5}>
                 <VStack align="start" spacing={0.5}>
                   <Text fontSize="13px" fontWeight="black" color="gray.900" noOfLines={1}>
-                    2026 N.Flying Concert '&con' in Seoul
+                    2026 N.Flying Concert '&CON' in Seoul
                   </Text>
                   <Text fontSize="11px" color="gray.500" fontWeight="bold">
                     N.Flying Hall | {selectedDate}{getDayOfWeekStr(selectedDate)} {selectedTime.split(" ")[0]}
@@ -1282,38 +1319,6 @@ const TicketlinkBooking = () => {
                   transition: isDraggingRef.current ? "none" : "transform 0.1s ease-out",
                 }}
               >
-                {/* Mini map thumbnail in the top-left */}
-                <Box
-                  position="absolute"
-                  top="12px"
-                  left="12px"
-                  w="65px"
-                  h="65px"
-                  bg="#E2E8F0"
-                  border="1.5px solid"
-                  borderColor="gray.400"
-                  borderRadius="lg"
-                  overflow="hidden"
-                  zIndex={10}
-                >
-                  <Box position="absolute" left="5px" top="0" bottom="0" w="1px" bg="red.500" />
-                  <Box position="absolute" right="5px" top="0" bottom="0" w="1px" bg="red.500" />
-                  {/* Miniature stadium shapes */}
-                  <Box
-                    position="absolute"
-                    top="15px"
-                    left="18px"
-                    w="26px"
-                    h="26px"
-                    border="1px solid"
-                    borderColor="gray.400"
-                    borderBottomRadius="13px"
-                  />
-                  {/* Mini stage */}
-                  <Box position="absolute" top="10px" left="22px" w="18px" h="4px" bg="gray.600" />
-                  <Box position="absolute" top="14px" left="30px" w="2px" h="10px" bg="gray.600" />
-                </Box>
-
                 {/* Floating Zoom Control Panel in the top-right */}
                 <VStack
                   position="absolute"
@@ -1410,7 +1415,7 @@ const TicketlinkBooking = () => {
                 {/* Top horizontal bar */}
                 <Box
                   position="absolute"
-                  top="30px"
+                  top="20px"
                   left="120px"
                   w="120px"
                   h="16px"
@@ -1431,7 +1436,7 @@ const TicketlinkBooking = () => {
                 {/* 가 (Floor Top Left) */}
                 <VStack
                   position="absolute"
-                  top="44px"
+                  top="40px"
                   left="120px"
                   spacing={0.5}
                   align="center"
@@ -1447,7 +1452,7 @@ const TicketlinkBooking = () => {
                 {/* 나 (Floor Top Right) */}
                 <VStack
                   position="absolute"
-                  top="44px"
+                  top="40px"
                   left="192px"
                   spacing={0.5}
                   align="center"
@@ -1753,7 +1758,7 @@ const TicketlinkBooking = () => {
                     <CheckCircle2 size={32} />
                   </Box>
                   <Text fontSize="13px" fontWeight="bold" color="red.500">
-                    TICKETLINK RESERVATION SUCCESS
+                    NFIALINK RESERVATION SUCCESS
                   </Text>
                   <Heading fontSize="20px" fontWeight="black" color="gray.800">
                     티켓 예매 성공 확인서
@@ -1768,12 +1773,12 @@ const TicketlinkBooking = () => {
                   <Grid templateColumns="100px 1fr" gap={2} fontSize="13px">
                     <Text color="gray.400">예매번호</Text>
                     <Text color="gray.800" fontWeight="bold" fontFamily="monospace">
-                      TL{Math.floor(Date.now() / 1000)}08
+                      NF20150520
                     </Text>
 
                     <Text color="gray.400">상품명</Text>
                     <Text color="gray.800" fontWeight="extrabold">
-                      2026 N.Flying Concert '&con' in Seoul
+                      2026 N.Flying Concert '&CON' in Seoul
                     </Text>
 
                     <Text color="gray.400">관람일시</Text>
@@ -1805,36 +1810,90 @@ const TicketlinkBooking = () => {
                   </Text>
                 </Box>
 
-                {/* Jaehyun Mode Congratulatory Card inside receipt */}
-                {mode === "jaehyun" && randomMember && (
+                {/* Polaroid Congratulatory Card inside receipt */}
+                {randomMember && (
                   <Box
                     p={6}
-                    bg="purple.50"
+                    bg={mode === "jaehyun" ? "purple.50" : mode === "nboom" ? "red.50" : "blue.50"}
                     borderTop="2px dashed"
-                    borderColor="purple.200"
+                    borderColor={mode === "jaehyun" ? "purple.200" : mode === "nboom" ? "red.200" : "blue.200"}
                     mt={4}
                     display="flex"
                     justifyContent="center"
                     alignItems="center"
+                    position="relative"
+                    overflow="hidden"
                   >
+                    <style>{`
+                      @keyframes bounceUp {
+                        0%, 100% { transform: translateY(0); }
+                        50% { transform: translateY(-6px); }
+                      }
+                    `}</style>
+                    {/* Extra decorative sparkles for Jaehyun */}
+                    {mode === "jaehyun" && (
+                      <>
+                        <Box position="absolute" top="10px" left="15px" fontSize="16px" style={{ animation: "bounceUp 1.5s ease-in-out infinite" }}>✨</Box>
+                        <Box position="absolute" top="15px" right="20px" fontSize="16px" style={{ animation: "bounceUp 1.8s ease-in-out infinite" }}>💙</Box>
+                        <Box position="absolute" bottom="15px" left="25px" fontSize="16px" style={{ animation: "bounceUp 2s ease-in-out infinite" }}>🥁</Box>
+                        <Box position="absolute" bottom="10px" right="15px" fontSize="16px" style={{ animation: "bounceUp 1.6s ease-in-out infinite" }}>✨</Box>
+                      </>
+                    )}
                     <Box
                       bg="white"
                       p="12px"
-                      pb="32px"
+                      pb="16px"
                       shadow="md"
-                      border="1px solid"
-                      borderColor="gray.200"
+                      borderRadius="4px"
+                      style={{
+                        boxShadow: mode === "jaehyun" ? "0 0 15px rgba(168, 85, 247, 0.5), 0 4px 10px rgba(0,0,0,0.15)" : undefined,
+                        border: mode === "jaehyun" ? "3px solid #b794f4" : "1px solid #e2e8f0",
+                        transform: mode === "jaehyun" ? "rotate(-2deg)" : "none",
+                        transition: "transform 0.3s ease",
+                      }}
+                      _hover={mode === "jaehyun" ? { transform: "rotate(0deg) scale(1.05) !important" } : undefined}
                       maxW="180px"
                       w="full"
+                      position="relative"
                     >
+                      {/* Golden Crown badge for Jaehyun */}
+                      {mode === "jaehyun" && (
+                        <Box
+                          position="absolute"
+                          top="-20px"
+                          left="50%"
+                          transform="translateX(-50%)"
+                          fontSize="22px"
+                          zIndex={10}
+                          style={{ filter: "drop-shadow(0 2px 4px rgba(0,0,0,0.15))" }}
+                        >
+                          👑
+                        </Box>
+                      )}
                       <Image
                         src={randomMember.avatar}
                         w="100%"
                         h="150px"
                         objectFit="cover"
                         border="1px solid"
-                        borderColor="gray.200"
+                        borderColor={mode === "jaehyun" ? "purple.100" : "gray.200"}
+                        borderRadius="2px"
                       />
+                      <VStack spacing={0} mt={3} align="center">
+                        <Text
+                          fontSize="12px"
+                          fontWeight="bold"
+                          color={mode === "jaehyun" ? "purple.700" : "gray.700"}
+                          fontFamily="monospace"
+                        >
+                          {randomMember.name}
+                        </Text>
+                        {mode === "jaehyun" && (
+                          <Text fontSize="8px" color="purple.500" fontWeight="extrabold" letterSpacing="1px" mt={0.5}>
+                            ★ SUPER DRUMMER ★
+                          </Text>
+                        )}
+                      </VStack>
                     </Box>
                   </Box>
                 )}
@@ -1851,9 +1910,7 @@ const TicketlinkBooking = () => {
                       </Text>
                     </HStack>
                     <Text fontSize="13px" color="gray.700" lineHeight="1.6">
-                      이 모드는 사실... 엔피아들이 한참 티켓팅에 집중하고 있을 때, 재현이가 프롬으로 채팅을 보내서 본의 아니게 방해 공작(?)을 펼쳤던 귀여운 실제 해프닝에서 영감을 받아 탄생한 모드예요!
-                      <br /><br />
-                      당시 재현이가 팬들과 수다 떨며 보낸 톡 메시지들이 바로 이 대환장 모드의 시초랍니다. 🤣
+                      이 모드는 엔피아들이 한참 티켓팅에 집중하고 있을 때, 재현이가 프롬을 보내서 본의 아니게 방해 공작(?)을 펼쳤던 실제 해프닝에서 영감을 받아 탄생한 모드예요!
                     </Text>
                     <Box
                       rounded="xl"
@@ -1941,7 +1998,7 @@ const TicketlinkBooking = () => {
                     <XCircle size={32} />
                   </Box>
                   <Text fontSize="13px" fontWeight="bold" color="red.500">
-                    TICKETLINK RESERVATION FAILED
+                    NFIALINK RESERVATION FAILED
                   </Text>
                   <Heading fontSize="20px" fontWeight="black" color="gray.800">
                     티켓 예매 실패
@@ -1956,7 +2013,7 @@ const TicketlinkBooking = () => {
                   <Grid templateColumns="100px 1fr" gap={2} fontSize="13px">
                     <Text color="gray.400">상품명</Text>
                     <Text color="gray.800" fontWeight="extrabold">
-                      2026 N.Flying Concert '&con' in Seoul
+                      2026 N.Flying Concert '&CON' in Seoul
                     </Text>
 
                     <Text color="gray.400">관람일시</Text>
@@ -1969,7 +2026,7 @@ const TicketlinkBooking = () => {
 
                     <Text color="gray.400">선택좌석</Text>
                     <Text color="red.500" fontWeight="black">
-                      매진 (선택 가능한 좌석 없음)
+                      매진
                     </Text>
 
                     <Text color="gray.400">소요시간</Text>
@@ -2121,6 +2178,27 @@ const TicketlinkBooking = () => {
                 </VStack>
               </form>
             </VStack>
+          </ModalBody>
+        </ModalContent>
+      </Modal>
+
+      {/* Robot Member CAPTCHA Modal */}
+      <Modal isOpen={showRobotCaptchaModal} onClose={() => { }} size="xs" isCentered closeOnOverlayClick={false}>
+        <ModalOverlay bg="blackAlpha.800" backdropFilter="blur(2px)" />
+        <ModalContent rounded="2xl" border="1px solid" borderColor="red.100" overflow="hidden">
+          <ModalBody p={0}>
+            <NfiaAuthScreen
+              isRobotCheck={true}
+              onSuccess={() => {
+                setShowRobotCaptchaModal(false);
+                toast({
+                  title: "인증되었습니다.",
+                  status: "success",
+                  duration: 1200,
+                  position: "top",
+                });
+              }}
+            />
           </ModalBody>
         </ModalContent>
       </Modal>
@@ -2282,8 +2360,7 @@ const TicketlinkBooking = () => {
             </VStack>
           ) : (
             <VStack
-              bg="purple.900"
-              bgGradient="linear(to-b, purple.950, indigo.900)"
+              bg="black"
               color="white"
               w="full"
               maxW="400px"
@@ -2291,21 +2368,21 @@ const TicketlinkBooking = () => {
               rounded="2xl"
               overflow="hidden"
               border="1.5px solid"
-              borderColor="purple.500"
+              borderColor="gray.800"
               spacing={0}
               shadow="2xl"
             >
               {/* Fromm Header */}
-              <Box bg="rgba(0,0,0,0.2)" w="full" px={4} py={3} borderBottom="1px solid" borderColor="purple.800">
+              <Box bg="black" w="full" px={4} py={3} borderBottom="1px solid" borderColor="gray.800">
                 <HStack justify="space-between">
                   <HStack spacing={2}>
                     <IconButton
                       icon={<ArrowLeft size={18} />}
                       aria-label="돌아가기"
                       variant="ghost"
-                      color="purple.200"
-                      _hover={{ color: "white", bg: "purple.800" }}
-                      _active={{ bg: "purple.700" }}
+                      color="gray.400"
+                      _hover={{ color: "white", bg: "gray.800" }}
+                      _active={{ bg: "gray.700" }}
                       rounded="full"
                       size="sm"
                       onClick={() => {
@@ -2313,17 +2390,17 @@ const TicketlinkBooking = () => {
                         setSavedPhase(null);
                       }}
                     />
-                    <Image src={activeFullScreenDistraction.avatar} w="32px" h="32px" rounded="full" objectFit="cover" border="1.5px solid" borderColor="purple.300" />
+                    <Image src={activeFullScreenDistraction.avatar} w="32px" h="32px" rounded="full" objectFit="cover" border="1.5px solid" borderColor="gray.700" />
                     <VStack align="start" spacing={0}>
-                      <Text fontSize="13px" fontWeight="black">
+                      <Text fontSize="13px" fontWeight="black" color="white">
                         {activeFullScreenDistraction.sender}
                       </Text>
-                      <Text fontSize="9px" color="purple.200">
+                      <Text fontSize="9px" color="gray.400">
                         활동 중 • fromm
                       </Text>
                     </VStack>
                   </HStack>
-                  <Badge colorScheme="purple" variant="subtle" fontSize="9px" px={2} py={0.5} rounded="md">
+                  <Badge colorScheme="gray" variant="subtle" fontSize="9px" px={2} py={0.5} rounded="md">
                     1:1 Chat
                   </Badge>
                 </HStack>
@@ -2334,17 +2411,17 @@ const TicketlinkBooking = () => {
                 <HStack align="start" spacing={2}>
                   <Image src={activeFullScreenDistraction.avatar} w="28px" h="28px" rounded="full" objectFit="cover" />
                   <VStack align="start" spacing={1}>
-                    <Text fontSize="9px" color="purple.200">
+                    <Text fontSize="9px" color="gray.400">
                       {activeFullScreenDistraction.sender}
                     </Text>
-                    <Box bg="white" color="black" py={2} px={3} rounded="xl" roundedTopLeft="none" fontSize="12px" maxW="240px">
+                    <Box bg="gray.800" color="white" py={2} px={3} rounded="xl" roundedTopLeft="none" fontSize="12px" maxW="240px">
                       {activeFullScreenDistraction.content}
                     </Box>
                   </VStack>
                 </HStack>
 
                 <HStack align="start" spacing={2} justify="flex-end" mt={2}>
-                  <Box bg="purple.500" color="white" py={2} px={3} rounded="xl" roundedBottomRight="none" fontSize="12px" maxW="240px">
+                  <Box bg="gray.600" color="white" py={2} px={3} rounded="xl" roundedBottomRight="none" fontSize="12px" maxW="240px">
                     나 지금 티켓팅 중이야!! 진짜 떨려 ㅠㅠ
                   </Box>
                 </HStack>
@@ -2352,10 +2429,10 @@ const TicketlinkBooking = () => {
                 <HStack align="start" spacing={2} mt={2}>
                   <Image src={activeFullScreenDistraction.avatar} w="28px" h="28px" rounded="full" objectFit="cover" />
                   <VStack align="start" spacing={1}>
-                    <Text fontSize="9px" color="purple.200">
+                    <Text fontSize="9px" color="gray.400">
                       {activeFullScreenDistraction.sender}
                     </Text>
-                    <Box bg="white" color="black" py={2} px={3} rounded="xl" roundedTopLeft="none" fontSize="12px" maxW="240px">
+                    <Box bg="gray.800" color="white" py={2} px={3} rounded="xl" roundedTopLeft="none" fontSize="12px" maxW="240px">
                       {getYoutubeReplyMessage(activeFullScreenDistraction.sender)}
                     </Box>
                   </VStack>
@@ -2363,21 +2440,25 @@ const TicketlinkBooking = () => {
               </VStack>
 
               {/* Chat Input Simulation */}
-              <Box bg="rgba(0,0,0,0.3)" w="full" px={4} py={3.5} borderTop="1px solid" borderColor="purple.800">
+              <Box bg="gray.900" w="full" px={4} py={3.5} borderTop="1px solid" borderColor="gray.700">
                 <HStack spacing={2} bg="rgba(255,255,255,0.08)" px={3} py={2} rounded="full">
-                  <Text fontSize="11px" color="purple.300" flex={1}>
+                  <Text fontSize="11px" color="gray.500" flex={1}>
                     메시지를 입력하세요...
                   </Text>
-                  <Box bg="purple.500" w="24px" h="24px" rounded="full" display="flex" alignItems="center" justifyContent="center" fontSize="11px">
+                  <Box bg="gray.600" w="24px" h="24px" rounded="full" display="flex" alignItems="center" justifyContent="center" fontSize="11px">
                     ➔
                   </Box>
                 </HStack>
               </Box>
 
               {/* Exit Button Panel */}
-              <Box bg="rgba(0,0,0,0.5)" w="full" p={4} borderTop="1px solid" borderColor="purple.800">
+              <Box bg="gray.900" w="full" p={4} borderTop="1px solid" borderColor="gray.700">
                 <Button
-                  colorScheme="purple"
+                  colorScheme="gray"
+                  bg="white"
+                  color="black"
+                  _hover={{ bg: "gray.100" }}
+                  _active={{ bg: "gray.200" }}
                   w="full"
                   onClick={() => {
                     setActiveFullScreenDistraction(null);

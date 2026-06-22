@@ -11,53 +11,46 @@ import {
 
 interface NfiaAuthScreenProps {
   onSuccess: () => void;
+  isRobotCheck?: boolean;
 }
 
 interface AuthOption {
-  emoji?: string;
-  image?: string;
+  image: string;
   label: string;
   isCorrect: boolean;
 }
 
-const correctOption = { image: "/image/banner/nflying_cover_image_1.webp", label: "엔플라잉 (N.Flying)" };
-
-const incorrectPool = [
-  { emoji: "🥦", label: "브로콜리" },
-  { emoji: "🏎️", label: "레이싱카" },
-  { emoji: "🧼", label: "비누" },
-  { emoji: "⏰", label: "알람시계" },
-  { emoji: "🪐", label: "토성" },
-  { emoji: "🍎", label: "사과" },
-  { emoji: "🍔", label: "햄버거" },
-  { emoji: "🧦", label: "양말" },
-  { emoji: "☂️", label: "우산" },
-  { emoji: "🚲", label: "자전거" },
-  { emoji: "🔑", label: "열쇠" },
-  { emoji: "🦖", label: "공룡" }
+const nflyingMembers = [
+  { name: "김재현", image: "/image/member/jaehyun.webp" },
+  { name: "서동성", image: "/image/member/dongsung.webp" },
+  { name: "차훈", image: "/image/member/chahun.webp" },
+  { name: "이승협", image: "/image/member/seunghyub.webp" },
+  { name: "유회승", image: "/image/member/hewseung.webp" }
 ];
 
-const NfiaAuthScreen = ({ onSuccess }: NfiaAuthScreenProps) => {
+const NfiaAuthScreen = ({ onSuccess, isRobotCheck = false }: NfiaAuthScreenProps) => {
   const [options, setOptions] = useState<AuthOption[]>([]);
+  const [targetName, setTargetName] = useState<string>("");
   const [errorMsg, setErrorMsg] = useState<string>("");
   const [isShaking, setIsShaking] = useState<boolean>(false);
 
   const shuffleOptions = useCallback(() => {
-    // Pick 3 random unique incorrect options
-    const shuffledPool = [...incorrectPool].sort(() => 0.5 - Math.random());
-    const selectedIncorrect = shuffledPool.slice(0, 3).map(opt => ({
-      ...opt,
-      isCorrect: false,
+    // Pick 4 random unique members from the list of 5
+    const shuffledPool = [...nflyingMembers].sort(() => 0.5 - Math.random());
+    const selected4 = shuffledPool.slice(0, 4);
+
+    // Pick 1 of the 4 as the correct answer
+    const correctIndex = Math.floor(Math.random() * 4);
+    const correctMember = selected4[correctIndex];
+    setTargetName(correctMember.name);
+
+    const mappedOptions = selected4.map(opt => ({
+      image: opt.image,
+      label: opt.name,
+      isCorrect: opt.name === correctMember.name,
     }));
 
-    const combined = [
-      { ...correctOption, isCorrect: true },
-      ...selectedIncorrect,
-    ];
-
-    // Shuffle all 4 options
-    const shuffledOptions = combined.sort(() => 0.5 - Math.random());
-    setOptions(shuffledOptions);
+    setOptions(mappedOptions);
   }, []);
 
   // Initialize options on mount
@@ -69,7 +62,7 @@ const NfiaAuthScreen = ({ onSuccess }: NfiaAuthScreenProps) => {
     if (option.isCorrect) {
       onSuccess();
     } else {
-      setErrorMsg("틀렸습니다! 당신은 엔피아가 맞나요? 😢");
+      setErrorMsg(`틀렸습니다! 당신은 엔피아가 맞나요? 😢 (찾아야 할 멤버: ${targetName})`);
       setIsShaking(true);
       setTimeout(() => {
         setIsShaking(false);
@@ -108,25 +101,18 @@ const NfiaAuthScreen = ({ onSuccess }: NfiaAuthScreenProps) => {
       `}</style>
 
       {/* 헤더 안내문 */}
-      <VStack spacing={1} align="center" py={1}>
-        <Box
-          bg="purple.50"
-          color="purple.600"
-          px={3}
-          py={1}
-          rounded="full"
-          fontSize="12px"
-          fontWeight="bold"
-          border="1px solid"
-          borderColor="purple.150"
-        >
-          🙋 엔피아 인증 (N.Fia CAPTCHA)
-        </Box>
-        <Text fontSize="16px" fontWeight="900" color="gray.850" mt={1}>
-          엔플라잉을 골라주세요!
+      <VStack spacing={2} align="center" py={1}>
+        <Text fontSize="18px" fontWeight="bold" color={isRobotCheck ? "red.600" : "purple.600"}>
+          {isRobotCheck ? "🤖 당신은 로봇인가요?" : "🙋 엔피아 인증 (N.Fia CAPTCHA)"}
         </Text>
-        <Text fontSize="11px" color="gray.500" textAlign="center">
-          아래의 4개 그림 중에서 엔플라잉(N.Flying)을 골라 터치하세요.
+        <Text fontSize="15px" color="gray.700" textAlign="center">
+          아래 이미지 중 진짜 <Text as="span" fontWeight="900" fontSize="17px" color="black">{
+            targetName === "김재현" ? "재현이" :
+            targetName === "서동성" ? "동성이" :
+            targetName === "차훈" ? "훈이" :
+            targetName === "이승협" ? "승협이" :
+            targetName === "유회승" ? "회승이" : targetName
+          }</Text>를 선택하세요.
         </Text>
       </VStack>
 
@@ -158,28 +144,18 @@ const NfiaAuthScreen = ({ onSuccess }: NfiaAuthScreenProps) => {
               transform: "translateY(-1px)",
             }}
             cursor="pointer"
-            h="130px"
+            h="120px"
           >
-            {option.isCorrect && option.image ? (
-              <Image
-                src={option.image}
-                w="64px"
-                h="64px"
-                objectFit="cover"
-                rounded="xl"
-                mb={2}
-                border="1px solid"
-                borderColor="gray.200"
-                shadow="sm"
-              />
-            ) : (
-              <Text fontSize="42px" mb={2} lineHeight="1">
-                {option.emoji}
-              </Text>
-            )}
-            <Text fontSize="12px" fontWeight="bold" color="gray.700" textAlign="center">
-              {option.label}
-            </Text>
+            <Image
+              src={option.image}
+              w="80px"
+              h="80px"
+              objectFit="cover"
+              rounded="xl"
+              border="1px solid"
+              borderColor="gray.200"
+              shadow="sm"
+            />
           </Box>
         ))}
       </Grid>

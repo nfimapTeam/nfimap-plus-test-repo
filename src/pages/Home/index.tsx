@@ -27,8 +27,8 @@ const Home = () => {
   // Ad-style captions corresponding to active slides
   const adCaptions = [
     "[광고] 디지털 싱글 환절기 발매",
-    "[광고] 엔플라잉 잘생김 광고",
-    "[광고] 옥탑방에서 별 따러 갈 사람? 띵곡 맛집 엔플라잉",
+    "[광고] 엔플라잉이 좋고 노래가 잘생겼어요",
+    "[광고] 옥탑방 올라갔다가 엔플라잉에 눌러앉음 🏠",
   ];
 
   useEffect(() => {
@@ -114,7 +114,7 @@ const Home = () => {
       {/* 2. 가로형 콘텐츠 리스트 (상용 서비스 느낌의 개선) */}
       <VStack spacing={4.5} px={4} align="stretch" flex={1}>
         <Heading fontSize="15px" fontWeight="800" color="gray.850" pt={2} px={1} borderBottom="1px solid" borderColor="gray.100" pb={2}>
-          플레이 존 서비스
+          엔피아 존
         </Heading>
 
         {/* 서비스 1: NFITI 테스트 */}
@@ -158,13 +158,13 @@ const Home = () => {
             {/* 중간 정보 및 카테고리 태그 */}
             <VStack align="start" spacing={0.5} overflow="hidden">
               <Text fontSize="10px" fontWeight="bold" color="pink.500" letterSpacing="0.5px">
-                성격 궁합
+                덕질 유형 테스트
               </Text>
               <Text fontSize="14px" fontWeight="bold" color="gray.800" noOfLines={1}>
-                NFITI 테스트
+                NFITI
               </Text>
               <Text fontSize="11px" color="gray.500" noOfLines={1}>
-                MBTI 유형별 나와 찰떡인 멤버 매칭하기
+                나는 어떤 유형의 엔피아일까?
               </Text>
             </VStack>
           </HStack>
@@ -231,7 +231,7 @@ const Home = () => {
                 티켓팅 연습
               </Text>
               <Text fontSize="11px" color="gray.500" noOfLines={1}>
-                안심코드 검증과 피켓팅 실전 환경 시뮬레이터
+                실전처럼 연습하는 엔플라잉 티켓팅
               </Text>
             </VStack>
           </HStack>

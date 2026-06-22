@@ -48,6 +48,23 @@ const TicketlinkHome = () => {
 
   // Setup modal initially open unless autoStart is true or session exists
   useEffect(() => {
+    const enteredBooking = sessionStorage.getItem("nfialink_entered_booking") === "true";
+    if (enteredBooking) {
+      sessionStorage.removeItem("ticketlink_sim_is_started");
+      sessionStorage.removeItem("ticketlink_sim_difficulty");
+      sessionStorage.removeItem("ticketlink_sim_delay");
+      sessionStorage.removeItem("ticketlink_sim_start_time");
+      sessionStorage.removeItem("ticketlink_sim_offset");
+      sessionStorage.removeItem("nfialink_entered_booking");
+      sessionStorage.removeItem("nfialinkStarted");
+      setIsStarted(false);
+      setIsOpenTicket(false);
+      setTimeLeft(5);
+      setCurrentTime("19:59:55.000");
+      onOpen();
+      return;
+    }
+
     const hasSavedSession = sessionStorage.getItem("ticketlink_sim_is_started") === "true";
     const savedDifficulty = sessionStorage.getItem("ticketlink_sim_difficulty") as "normal" | "nboom" | "jaehyun" | null;
     const savedDelayStr = sessionStorage.getItem("ticketlink_sim_delay");
@@ -139,27 +156,36 @@ const TicketlinkHome = () => {
             openTimeRef.current = simulationStartRef.current + (targetDelay * 1000) + openTimeOffsetRef.current;
           }
         }
+
+        // 30s Timeout Fail Check
+        const targetOpenTime = simulationStartRef.current + (targetDelay * 1000) + openTimeOffsetRef.current;
+        if (Date.now() >= targetOpenTime + 30000) {
+          if (timerRef.current) clearInterval(timerRef.current);
+          sessionStorage.setItem("nfialinkStarted", "true");
+          sessionStorage.removeItem("ticketlink_sim_is_started");
+          sessionStorage.removeItem("ticketlink_sim_difficulty");
+          sessionStorage.removeItem("ticketlink_sim_delay");
+          sessionStorage.removeItem("ticketlink_sim_start_time");
+          sessionStorage.removeItem("ticketlink_sim_offset");
+          navigate(`/ticketing/nfialink/booking?mode=${targetDifficulty}&failType=timeout`);
+        }
       }, 30);
 
-      if (Date.now() >= expectedOpenTime) {
+      // If open time has already passed by more than 30 seconds on mount, redirect immediately
+      if (Date.now() >= expectedOpenTime + 30000) {
         if (timerRef.current) clearInterval(timerRef.current);
-        const openServerMs = (20 * 3600 + 0 * 60 + 0) * 1000 + targetOffset;
-        const ms = Math.floor(openServerMs % 1000);
-        const totalSecs = Math.floor(openServerMs / 1000);
-        const secs = totalSecs % 60;
-        const totalMins = Math.floor(totalSecs / 60);
-        const mins = totalMins % 60;
-        const hours = Math.floor(totalMins / 60) % 24;
-
-        const formatTime = (h: number, m: number, s: number, milli: number) => {
-          return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}.${String(milli).padStart(3, "0")}`;
-        };
-        setCurrentTime(formatTime(hours, mins, secs, ms >= 0 ? ms : 0));
+        sessionStorage.setItem("nfialinkStarted", "true");
+        sessionStorage.removeItem("ticketlink_sim_is_started");
+        sessionStorage.removeItem("ticketlink_sim_difficulty");
+        sessionStorage.removeItem("ticketlink_sim_delay");
+        sessionStorage.removeItem("ticketlink_sim_start_time");
+        sessionStorage.removeItem("ticketlink_sim_offset");
+        navigate(`/ticketing/nfialink/booking?mode=${targetDifficulty}&failType=timeout`);
       }
     } else {
       onOpen();
     }
-  }, [onOpen, searchParams]);
+  }, [onOpen, searchParams, navigate]);
 
   // Handle ticketing simulation
   const startSimulation = () => {
@@ -210,6 +236,19 @@ const TicketlinkHome = () => {
           openTimeRef.current = simulationStartRef.current + (delay * 1000) + openTimeOffsetRef.current;
         }
       }
+
+      // 30s Timeout Fail Check
+      const targetOpenTime = simulationStartRef.current + (delay * 1000) + openTimeOffsetRef.current;
+      if (Date.now() >= targetOpenTime + 30000) {
+        if (timerRef.current) clearInterval(timerRef.current);
+        sessionStorage.setItem("nfialinkStarted", "true");
+        sessionStorage.removeItem("ticketlink_sim_is_started");
+        sessionStorage.removeItem("ticketlink_sim_difficulty");
+        sessionStorage.removeItem("ticketlink_sim_delay");
+        sessionStorage.removeItem("ticketlink_sim_start_time");
+        sessionStorage.removeItem("ticketlink_sim_offset");
+        navigate(`/ticketing/nfialink/booking?mode=${difficulty}&failType=timeout`);
+      }
     }, 30);
   };
 
@@ -242,7 +281,6 @@ const TicketlinkHome = () => {
       // Only activate the booking button if refresh was completed after the open time
       if (isCompletedAfterOpen) {
         setIsOpenTicket(true);
-        if (timerRef.current) clearInterval(timerRef.current);
       }
     }, totalDelay); // Simulate page refresh delay with optional lag
   };
@@ -336,7 +374,7 @@ const TicketlinkHome = () => {
             }}
           />
           <Heading fontSize="12px" fontWeight="bold" noOfLines={1} maxW="120px" color="gray.800">
-            2026 N.Flying Concert '&con' in Seoul 🇰🇷 한국어
+            2026 N.Flying Concert '&CON' in Seoul 🇰🇷 한국어
           </Heading>
           <HStack spacing={2}>
             <IconButton
@@ -482,7 +520,7 @@ const TicketlinkHome = () => {
                   </Text>
                 </HStack>
                 <Heading fontSize="18px" fontWeight="900" lineHeight="1.3" color="gray.900">
-                  2026 N.Flying Concert '&con' in Seoul
+                  2026 N.Flying Concert '&CON' in Seoul
                 </Heading>
 
                 <HStack justify="space-between" w="full" mt={1}>
@@ -599,7 +637,7 @@ const TicketlinkHome = () => {
                         <Text fontWeight="bold" fontSize="14px" color="red.700">엔붐온 모드 (Hard)</Text>
                       </Radio>
                       <Text fontSize="12px" color="gray.500" pl={6} mt={1}>
-                        콘서트 주요 구역(Floor, 전열)이 극단적으로 빨리 사라집니다. 좌석이 엄청 빠르게 사라집니다.
+                        콘서트 주요 구역(Floor, 전열)이 극단적으로 빠르게 사라집니다.
                       </Text>
                     </Box>
 
@@ -616,7 +654,7 @@ const TicketlinkHome = () => {
                         <Text fontWeight="bold" fontSize="14px" color="purple.700">대환장 모드 (Crazy)</Text>
                       </Radio>
                       <Text fontSize="12px" color="gray.500" pl={6} mt={1}>
-                        프롬 채팅 및 유튜브 라이브 알림, 슬라이더 퍼즐 검증 등 온갖 극악의 방해 요소가 괴롭히는 대환장 파티입니다.
+                        온갖 극악의 방해 요소가 괴롭히는 대환장 파티입니다.
                       </Text>
                     </Box>
                   </VStack>
@@ -645,7 +683,7 @@ const TicketlinkHome = () => {
                       >
                         <Radio value={String(sec)} colorScheme="blue" display="none" />
                         <Text fontWeight="bold" fontSize="14px">
-                          {sec === 5 ? "5초 후 (즉시)" : `${sec}초 후`}
+                          {sec === 5 ? "5초 후" : `${sec}초 후`}
                         </Text>
                       </Box>
                     ))}

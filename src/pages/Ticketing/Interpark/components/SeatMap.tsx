@@ -37,10 +37,10 @@ const SeatMap = ({
 }: SeatMapProps) => {
   const toast = useToast();
   const [selectedSeatId, setSelectedSeatId] = useState<string | null>(null);
-  
+
   const isFloor = sectionId.startsWith("F");
   const numRows = isFloor ? 20 : 16; // Floor has 20 rows, tiers have 16 rows
-  
+
   const rowNames = useMemo(() => {
     return ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O", "P", "Q", "R", "S", "T"].slice(0, numRows);
   }, [numRows]);
@@ -84,7 +84,7 @@ const SeatMap = ({
     const isNboom = mode === "nboom";
 
     // Simulate instant submit hijack (race condition where another user hits reserve first!)
-    const hijackChance = isJaehyun ? 0.80 : isNboom ? 0.30 : 0.10;
+    const hijackChance = isJaehyun ? 0.80 : isNboom ? 0.20 : 0.05;
     let finalSeats = seats;
     if (Math.random() < hijackChance) {
       finalSeats = seats.map((s) =>
@@ -94,11 +94,11 @@ const SeatMap = ({
     }
 
     const selectedSeat = finalSeats.find((s) => s.id === selectedSeatId);
-    
+
     // Check if the seat got occupied by a bot before submit!
     if (!selectedSeat || selectedSeat.status === "occupied") {
       toast({
-        title: "이미 선택된 좌석입니다. (이선좌)",
+        title: "이미 선택된 좌석입니다.",
         description: "예매 진행 도중 다른 예매자가 먼저 결제창에 진입했습니다.",
         status: "error",
         duration: 2500,
@@ -171,7 +171,7 @@ const SeatMap = ({
               >
                 {rowName}열
               </Text>
-              
+
               {/* 실제 좌석 블록들 */}
               {seats
                 .filter((s) => s.rowName === rowName)
@@ -215,8 +215,8 @@ const SeatMap = ({
             <VStack align="end" spacing={1}>
               <Text color="gray.400" fontSize="11px">좌석 등급 / 가격</Text>
               <Text fontWeight="bold" color="gray.850">
-                {selectedSeatObj && selectedSeatObj.status !== "occupied" 
-                  ? `${seatTier} / ${seatPrice.toLocaleString()}원` 
+                {selectedSeatObj && selectedSeatObj.status !== "occupied"
+                  ? `${seatTier} / ${seatPrice.toLocaleString()}원`
                   : "-"}
               </Text>
             </VStack>

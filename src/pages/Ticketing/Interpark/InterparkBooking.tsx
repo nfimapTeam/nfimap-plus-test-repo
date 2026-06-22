@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
-import { Box, HStack, Text, Badge, VStack, Heading, Grid, Button, Image, useToast, IconButton } from "@chakra-ui/react";
+import { Box, HStack, Text, Badge, VStack, Heading, Grid, Button, Image, useToast, IconButton, Modal, ModalOverlay, ModalContent, ModalBody, Divider } from "@chakra-ui/react";
 import { X, ArrowLeft, XCircle } from "lucide-react";
 import { DISTRACTION_MEMBERS, YOUTUBE_CHANNELS, DistractionMember, getYoutubeReplyMessage } from "../constants";
 
@@ -11,7 +11,7 @@ import StadiumMap from "./components/StadiumMap";
 import SeatMap from "./components/SeatMap";
 import { SectionSeatData, SeatData } from "./types";
 
-type BookingPhase = "queue" | "captcha" | "stadium" | "seat" | "success" | "fail";
+type BookingPhase = "queue" | "dateSelect" | "captcha" | "stadium" | "seat" | "success" | "fail";
 
 interface DistractionEvent {
   id: string;
@@ -58,10 +58,19 @@ const generateInitialSeatsForSection = (
 
   // Pre-occupy percentage baseline based on delay
   let baseOccupancyPercent = 0;
-  if (isHard) {
-    baseOccupancyPercent = 0.40 + delaySec * 0.25;
+  if (mode === "nboom") {
+    // Nboom (hard) mode baseline: starts at 45% occupied and increases with delay
+    baseOccupancyPercent = 0.45 + delaySec * 0.35;
+  } else if (mode === "jaehyun") {
+    // Jaehyun (crazy) mode baseline: starts at 40% occupied and increases with delay
+    baseOccupancyPercent = 0.40 + delaySec * 0.30;
   } else {
-    baseOccupancyPercent = 0.35 + delaySec * 0.18;
+    // Normal mode baseline
+    if (delaySec < 0.3) {
+      baseOccupancyPercent = delaySec * 0.3;
+    } else {
+      baseOccupancyPercent = 0.25 + (delaySec - 0.3) * 0.28;
+    }
   }
   baseOccupancyPercent = Math.min(1.0, Math.max(0.0, baseOccupancyPercent));
 
@@ -72,8 +81,11 @@ const generateInitialSeatsForSection = (
     let occupancyProb = baseOccupancyPercent * (rowWeight / numRows) * 1.6;
 
     // Front rows (first 4 rows) should be extremely occupied if delay is large
-    if (isHard && delaySec > 0.8 && rIdx < 4) {
-      occupancyProb = 0.98;
+    if (delaySec > 0.5 && rIdx < 4) {
+      occupancyProb = Math.max(occupancyProb, isHard ? 0.98 : 0.90);
+    }
+    if (delaySec > 0.5 && rIdx < 6) {
+      occupancyProb = Math.max(occupancyProb, isHard ? 0.92 : 0.75);
     }
 
     // Clamp
@@ -102,12 +114,17 @@ const InterparkBooking = () => {
   const mode = (searchParams.get("mode") as "normal" | "nboom" | "jaehyun") || "normal";
   const delayParam = searchParams.get("delay");
   const delayMs = delayParam ? parseInt(delayParam, 10) : 0;
+  const failType = searchParams.get("failType");
 
   // Booking states
-  const [phase, setPhase] = useState<BookingPhase>("queue");
+  const [phase, setPhase] = useState<BookingPhase>(() => {
+    return failType === "timeout" ? "fail" : "queue";
+  });
   const [selectedSection, setSelectedSection] = useState<string | null>(null);
   const [selectedSeat, setSelectedSeat] = useState<string | null>(null);
 
+  const [selectedDate, setSelectedDate] = useState<string>("");
+  const [selectedTime, setSelectedTime] = useState<string>("");
   const [formattedDateStr, setFormattedDateStr] = useState<string>("2026.07.11 (토) 17:00");
   useEffect(() => {
     const today = new Date();
@@ -140,20 +157,26 @@ const InterparkBooking = () => {
   const [yiseonjwaCount, setYiseonjwaCount] = useState<number>(0);
   const [randomMember, setRandomMember] = useState<DistractionMember | null>(null);
 
+  const [showRobotCaptchaModal, setShowRobotCaptchaModal] = useState<boolean>(false);
+  const initialAvailableSeatsBySectionRef = useRef<Record<string, number>>({});
+
   // Initialize state once at mount or reset
   const initializeBookingSession = useCallback(() => {
     const initialSeatsMap: Record<string, SeatData[]> = {};
+    const initialMap: Record<string, number> = {};
     const initializedSections = sectionConfigs.map((cfg) => {
       const generatedSeats = generateInitialSeatsForSection(cfg.id, mode, delayMs);
       initialSeatsMap[cfg.id] = generatedSeats;
 
       const remainingCount = generatedSeats.filter((s) => s.status === "available").length;
+      initialMap[cfg.id] = remainingCount;
       return {
         ...cfg,
         remainingSeats: remainingCount,
       } as SectionSeatData;
     });
 
+    initialAvailableSeatsBySectionRef.current = initialMap;
     setDetailedSeats(initialSeatsMap);
     setSections(initializedSections);
   }, [mode, delayMs]);
@@ -164,6 +187,7 @@ const InterparkBooking = () => {
 
   // Redirect to home if page is refreshed
   useEffect(() => {
+    sessionStorage.setItem("nfiapark_entered_booking", "true");
     const isStarted = sessionStorage.getItem("nfiaparkStarted");
     if (!isStarted) {
       navigate("/ticketing/nfiapark");
@@ -176,9 +200,13 @@ const InterparkBooking = () => {
   }, [navigate]);
 
   useEffect(() => {
-    if (phase === "success" && !randomMember && mode === "jaehyun") {
-      const idx = Math.floor(Math.random() * DISTRACTION_MEMBERS.length);
-      setRandomMember(DISTRACTION_MEMBERS[idx]);
+    if (phase === "success" && !randomMember) {
+      if (mode === "jaehyun") {
+        setRandomMember(DISTRACTION_MEMBERS[0]);
+      } else {
+        const idx = Math.floor(Math.random() * DISTRACTION_MEMBERS.length);
+        setRandomMember(DISTRACTION_MEMBERS[idx]);
+      }
     }
   }, [phase, mode, randomMember]);
 
@@ -193,9 +221,14 @@ const InterparkBooking = () => {
   // Time tracking states
   const [startTime, setStartTime] = useState<number>(0);
   const [elapsedTime, setElapsedTime] = useState<number>(0);
+  const globalStartTimeRef = useRef<number>(performance.now());
 
   // Process connection queue if delay exists
   useEffect(() => {
+    if (failType === "timeout") {
+      setPhase("fail");
+      return;
+    }
     const delaySec = Math.max(0, delayMs / 1000);
     let qSize = 0;
     if (delaySec >= 0.25) {
@@ -207,8 +240,7 @@ const InterparkBooking = () => {
     }
 
     if (qSize <= 0) {
-      setPhase("captcha");
-      setStartTime(performance.now());
+      setPhase("dateSelect");
       return;
     }
 
@@ -228,167 +260,133 @@ const InterparkBooking = () => {
       setCurrentQueue(tempQueue);
       if (tempQueue <= 0) {
         clearInterval(timer);
-        setPhase("captcha");
-        setStartTime(performance.now()); // Restart timer so that wait time isn't penalized
+        setPhase("dateSelect");
       }
     }, tickInterval);
 
     return () => clearInterval(timer);
   }, [delayMs, mode]);
 
-  // Central background seat depletion loop
+  // Central background seat depletion loop (Optimized to prevent stuttering)
   useEffect(() => {
-    if (phase === "queue" || phase === "success" || phase === "fail") return;
+    if (phase === "queue" || phase === "dateSelect" || phase === "captcha" || phase === "success" || phase === "fail") return;
 
     const isJaehyun = mode === "jaehyun";
     const isNboom = mode === "nboom";
 
-    // Tick speed: 70ms for N-Boom-On (hard) to ensure smooth cascading depletion, 400ms for Normal, 600ms for Jaehyun
-    const tickTime = isNboom ? 70 : mode === "normal" ? 400 : 600;
+    // Fast 100ms interval for smooth linear depletion
+    const tickTime = 100;
 
-    let intervalId: NodeJS.Timeout | null = null;
+    const intervalId = setInterval(() => {
+      const elapsed = (performance.now() - startTime) / 1000;
+      const targetDuration = isNboom ? 18 : isJaehyun ? 60 : 80;
+      const targetDepletedRatio = Math.min(1.0, elapsed / targetDuration);
 
-    const startTimeout = setTimeout(() => {
-      intervalId = setInterval(() => {
-        setDetailedSeats((prevDetailed) => {
-          const nextDetailed = { ...prevDetailed };
-          let anyChanged = false;
+      // 1. Calculate target remaining seats and deplete sections
+      const depletions: Record<string, number> = {};
+      setSections((prevSections) => {
+        if (prevSections.length === 0) return prevSections;
+        return prevSections.map((sec) => {
+          // Calculate section-specific depletion speed to satisfy "top-first" (FLOOR -> 2F -> 3F)
+          let secDepletedRatio = 0;
+          if (sec.type === "FLOOR") {
+            secDepletedRatio = Math.min(1.0, targetDepletedRatio * 2.0);
+          } else if (sec.type === "2F") {
+            secDepletedRatio = Math.min(1.0, targetDepletedRatio * 1.25);
+          } else {
+            secDepletedRatio = targetDepletedRatio;
+          }
 
-          Object.keys(nextDetailed).forEach((sectionId) => {
-            const prevSeats = nextDetailed[sectionId];
-            const availableSeats = prevSeats.filter((s) => s.status === "available");
-            if (availableSeats.length === 0) return;
-
-            // Find config for this section to apply its speed factor
-            const cfg = sectionConfigs.find((c) => c.id === sectionId);
-            const speedFactor = cfg ? (cfg.depleteSpeed / 20) : 1.0;
-
-            // Seats to occupy in this tick
-            let numToOccupy = 0;
-            if (isNboom) {
-              const baseNum = Math.random() < 0.6 ? 1 : 2; // 1 to 2 base for smooth depletion
-              numToOccupy = Math.max(1, Math.round(baseNum * speedFactor));
-            } else if (mode === "jaehyun") {
-              const delaySec = Math.max(0, delayMs / 1000);
-              const baseOccupancyPercent = Math.min(1.0, Math.max(0.0, 0.35 + delaySec * 0.18));
-              const approxInitialAvailable = (cfg?.initialSeats || 400) * (1 - baseOccupancyPercent);
-              const ticksIn60s = 60000 / tickTime; // 100 ticks
-              numToOccupy = Math.max(1, Math.round(approxInitialAvailable / ticksIn60s));
-            } else {
-              const baseNum = Math.floor(Math.random() * 3) + 2; // 2 to 4 base (Harder Normal)
-              numToOccupy = Math.floor(baseNum * speedFactor);
-            }
-
-            if (numToOccupy <= 0) return;
-            anyChanged = true;
-
-            const updatedSeats = [...prevSeats];
-
-            // Row configuration details for scoring
-            const numRows = sectionId.startsWith("F") ? 20 : 16;
-            const rowNamesList = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O", "P", "Q", "R", "S", "T"];
-
-            // Sort available seats randomly but heavily biased towards the front (row A downwards)
-            const sortedAvailable = [...availableSeats].sort((a, b) => {
-              const aIdx = rowNamesList.indexOf(a.rowName);
-              const bIdx = rowNamesList.indexOf(b.rowName);
-              const aWeight = numRows - aIdx;
-              const bWeight = numRows - bIdx;
-
-              const aScore = Math.random() * Math.pow(aWeight, 1.8);
-              const bScore = Math.random() * Math.pow(bWeight, 1.8);
-
-              return bScore - aScore; // Highest score first
-            });
-
-            for (let i = 0; i < Math.min(numToOccupy, sortedAvailable.length); i++) {
-              const seatToTake = sortedAvailable[i];
-              const idx = updatedSeats.findIndex((s) => s.id === seatToTake.id);
-              if (idx !== -1) {
-                updatedSeats[idx] = {
-                  ...updatedSeats[idx],
-                  status: "occupied",
-                };
-              }
-            }
-
-            // Bot hijack selected seat in all modes
-            const hijackChance = isJaehyun ? 0.15 : isNboom ? 0.18 : 0.05;
-            if (Math.random() < hijackChance) {
-              const selectedIdx = updatedSeats.findIndex((s) => s.status === "selected");
-              if (selectedIdx !== -1) {
-                updatedSeats[selectedIdx] = {
-                  ...updatedSeats[selectedIdx],
-                  status: "occupied",
-                };
-              }
-            }
-
-            nextDetailed[sectionId] = updatedSeats;
-          });
-
-          return anyChanged ? nextDetailed : prevDetailed;
-        });
-      }, tickTime);
-    }, 1000);
-
-    return () => {
-      clearTimeout(startTimeout);
-      if (intervalId) clearInterval(intervalId);
-    };
-  }, [mode, phase, delayMs]);
-
-  // Sync remaining seats counts in sections with detailedSeats
-  useEffect(() => {
-    setSections((prevSections) => {
-      if (prevSections.length === 0) return prevSections;
-      const nextSections = prevSections.map((sec) => {
-        const seats = detailedSeats[sec.id];
-        if (!seats) return sec;
-        const remaining = seats.filter((s) => s.status === "available").length;
-        if (sec.remainingSeats !== remaining) {
+          const initialAvail = initialAvailableSeatsBySectionRef.current[sec.id] || sec.initialSeats;
+          const targetRemaining = Math.max(0, initialAvail - Math.round(initialAvail * secDepletedRatio));
+          depletions[sec.id] = sec.remainingSeats - targetRemaining;
           return {
             ...sec,
-            remainingSeats: remaining,
+            remainingSeats: targetRemaining,
           };
-        }
-        return sec;
+        });
       });
 
-      const hasChanged = nextSections.some((sec, idx) => sec.remainingSeats !== prevSections[idx].remainingSeats);
-      return hasChanged ? nextSections : prevSections;
-    });
-  }, [detailedSeats]);
+      // 2. Update detailedSeats ONLY for the selectedSection (if any)
+      if (selectedSection) {
+        setDetailedSeats((prevDetailed) => {
+          const prevSeats = prevDetailed[selectedSection];
+          if (!prevSeats) return prevDetailed;
+
+          const numToOccupy = depletions[selectedSection] || 0;
+          if (numToOccupy <= 0) return prevDetailed;
+
+          const updatedSeats = [...prevSeats];
+          const numRows = selectedSection.startsWith("F") ? 20 : 16;
+          const rowNamesList = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O", "P", "Q", "R", "S", "T"];
+
+          // Sort available seats: front rows first but with jitter
+          const availableSeats = prevSeats.filter((s) => s.status === "available");
+          const sortedAvailable = [...availableSeats].sort((a, b) => {
+            const aIdx = rowNamesList.indexOf(a.rowName);
+            const bIdx = rowNamesList.indexOf(b.rowName);
+            const aWeight = numRows - aIdx;
+            const bWeight = numRows - bIdx;
+
+            const aScore = aWeight * 100 + Math.random() * 20;
+            const bScore = bWeight * 100 + Math.random() * 20;
+
+            return bScore - aScore;
+          });
+
+          for (let i = 0; i < Math.min(numToOccupy, sortedAvailable.length); i++) {
+            const seatToTake = sortedAvailable[i];
+            const idx = updatedSeats.findIndex((s) => s.id === seatToTake.id);
+            if (idx !== -1) {
+              updatedSeats[idx] = { ...updatedSeats[idx], status: "occupied" };
+            }
+          }
+
+          // Bot hijack selected seat in selected section (only in jaehyun mode)
+          const hijackChance = isJaehyun ? 0.05 : 0;
+          if (hijackChance > 0 && Math.random() < hijackChance) {
+            const selectedIdx = updatedSeats.findIndex((s) => s.status === "selected");
+            if (selectedIdx !== -1) {
+              updatedSeats[selectedIdx] = {
+                ...updatedSeats[selectedIdx],
+                status: "occupied",
+              };
+            }
+          }
+
+          return {
+            ...prevDetailed,
+            [selectedSection]: updatedSeats,
+          };
+        });
+      }
+    }, tickTime);
+
+    return () => {
+      clearInterval(intervalId);
+    };
+  }, [mode, phase, startTime, selectedSection]);
 
   // Check for failure (all seats sold out across all sections and no seat selected)
   useEffect(() => {
     if (phase !== "stadium" && phase !== "seat") return;
 
-    const sectionsKeys = Object.keys(detailedSeats);
-    if (sectionsKeys.length === 0) return;
-
-    let totalAvailable = 0;
-    sectionsKeys.forEach((secId) => {
-      const seatsList = detailedSeats[secId];
-      if (seatsList) {
-        totalAvailable += seatsList.filter((s) => s.status === "available").length;
-      }
-    });
+    const totalAvailable = sections.reduce((sum, sec) => sum + sec.remainingSeats, 0);
 
     let hasSelectedSeat = false;
-    sectionsKeys.forEach((secId) => {
-      const seatsList = detailedSeats[secId];
+    if (selectedSection) {
+      const seatsList = detailedSeats[selectedSection];
       if (seatsList && seatsList.some((s) => s.status === "selected")) {
         hasSelectedSeat = true;
       }
-    });
+    }
 
     if (totalAvailable === 0 && !hasSelectedSeat) {
       const endTime = performance.now();
-      setElapsedTime((endTime - startTime) / 1000);
+      setElapsedTime((delayMs / 1000) + ((endTime - globalStartTimeRef.current) / 1000));
       setPhase("fail");
     }
-  }, [detailedSeats, phase, startTime]);
+  }, [sections, detailedSeats, phase, startTime, selectedSection]);
 
   // Distraction event spawner loop in Jaehyun Mode
   useEffect(() => {
@@ -416,8 +414,8 @@ const InterparkBooking = () => {
       } else {
         const selectedMember = DISTRACTION_MEMBERS[Math.floor(Math.random() * DISTRACTION_MEMBERS.length)];
         const msg = selectedMember.messages[Math.floor(Math.random() * selectedMember.messages.length)];
-        const y = Math.floor(Math.random() * 200) + 120; // 120px - 320px down
-        const x = Math.floor(Math.random() * 40) + 20;   // 20px - 60px margins
+        const y = Math.floor(Math.random() * 500) + 150; // Randomly spread across the seat map height
+        const x = Math.floor(Math.random() * 100) + 10; // Randomly spread horizontally
         newEvent = {
           id,
           type: "fromm",
@@ -429,7 +427,10 @@ const InterparkBooking = () => {
         };
       }
 
-      setDistractions((prev) => [...prev, newEvent]);
+      setDistractions((prev) => {
+        if (prev.length >= 7) return prev;
+        return [...prev, newEvent];
+      });
 
       // Automatically clear after 4.5 seconds (only for YouTube)
       if (newEvent.type === "youtube") {
@@ -440,7 +441,7 @@ const InterparkBooking = () => {
     };
 
     const triggerNext = () => {
-      const nextDelay = (Math.random() * 1200 + 800) * 1.25; // Decreased frequency to 80%
+      const nextDelay = (Math.random() * 1200 + 800) * 1.5625; // Decreased frequency to 80% of current
       return setTimeout(() => {
         spawnDistraction();
         timerId = triggerNext();
@@ -460,7 +461,13 @@ const InterparkBooking = () => {
     };
   }, [mode, phase]);
 
+  const handleDateSelectNext = () => {
+    if (!selectedDate || !selectedTime) return;
+    setPhase("captcha");
+  };
+
   const handleCaptchaSuccess = () => {
+    setStartTime(performance.now());
     if (savedPhase) {
       setPhase(savedPhase);
       setSavedPhase(null);
@@ -477,9 +484,54 @@ const InterparkBooking = () => {
     }
   };
 
+  const syncSelectedSectionSeats = useCallback((sectionId: string, targetRemaining: number) => {
+    setDetailedSeats((prevDetailed) => {
+      const prevSeats = prevDetailed[sectionId];
+      if (!prevSeats) return prevDetailed;
+
+      const availableSeats = prevSeats.filter((s) => s.status === "available");
+      const difference = availableSeats.length - targetRemaining;
+      if (difference <= 0) return prevDetailed;
+
+      const updatedSeats = [...prevSeats];
+      const numRows = sectionId.startsWith("F") ? 20 : 16;
+      const rowNamesList = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O", "P", "Q", "R", "S", "T"];
+
+      // Sort available seats: front rows first but with jitter
+      const sortedAvailable = [...availableSeats].sort((a, b) => {
+        const aIdx = rowNamesList.indexOf(a.rowName);
+        const bIdx = rowNamesList.indexOf(b.rowName);
+        const aWeight = numRows - aIdx;
+        const bWeight = numRows - bIdx;
+
+        const aScore = aWeight * 100 + Math.random() * 20;
+        const bScore = bWeight * 100 + Math.random() * 20;
+
+        return bScore - aScore;
+      });
+
+      for (let i = 0; i < Math.min(difference, sortedAvailable.length); i++) {
+        const seatToTake = sortedAvailable[i];
+        const idx = updatedSeats.findIndex((s) => s.id === seatToTake.id);
+        if (idx !== -1) {
+          updatedSeats[idx] = { ...updatedSeats[idx], status: "occupied" };
+        }
+      }
+
+      return {
+        ...prevDetailed,
+        [sectionId]: updatedSeats,
+      };
+    });
+  }, []);
+
   const handleSectionSelect = (sectionId: string) => {
     const action = () => {
       setSelectedSection(sectionId);
+      const sec = sections.find((s) => s.id === sectionId);
+      if (sec) {
+        syncSelectedSectionSeats(sectionId, sec.remainingSeats);
+      }
       setPhase("seat");
     };
 
@@ -501,7 +553,8 @@ const InterparkBooking = () => {
       const next = prev + 1;
       if (next >= 3) {
         setSelectedSection(null);
-        setPhase("captcha");
+        setPhase("stadium");
+        setShowRobotCaptchaModal(true);
         return 0;
       }
       return next;
@@ -516,8 +569,18 @@ const InterparkBooking = () => {
       const seat = seats.find((s) => s.id === seatId);
 
       if (!seat || seat.status === "occupied") {
+        // Change seat to occupied on map
+        setDetailedSeats((prev) => {
+          const next = { ...prev };
+          const sectionSeats = next[sectionId] || [];
+          next[sectionId] = sectionSeats.map((s) =>
+            s.id === seatId ? { ...s, status: "occupied" } : s
+          );
+          return next;
+        });
+
         toast({
-          title: "이미 선택된 좌석입니다. (이선좌)",
+          title: "이미 선택된 좌석입니다.",
           description: "예매 진행 도중 다른 예매자가 먼저 결제창에 진입했습니다.",
           status: "error",
           duration: 2500,
@@ -529,7 +592,7 @@ const InterparkBooking = () => {
       }
 
       const endTime = performance.now();
-      const duration = (endTime - startTime) / 1000; // in seconds
+      const duration = (delayMs / 1000) + ((endTime - globalStartTimeRef.current) / 1000); // in seconds
 
       // Mark the seat as occupied/reserved to avoid double booking
       setDetailedSeats((prev) => {
@@ -548,12 +611,7 @@ const InterparkBooking = () => {
       setPhase("success");
     };
 
-    if (mode === "jaehyun" && Math.random() < 0.6) {
-      setPendingAction(() => action);
-      setShowPuzzleOverlay(true);
-    } else {
-      action();
-    }
+    action();
   };
 
   const handleReset = () => {
@@ -561,6 +619,8 @@ const InterparkBooking = () => {
     sessionStorage.removeItem("interpark_sim_difficulty");
     sessionStorage.removeItem("interpark_sim_delay");
     sessionStorage.removeItem("interpark_sim_start_time");
+    sessionStorage.removeItem("nfiapark_entered_booking");
+    sessionStorage.removeItem("nfiaparkStarted");
     navigate(`/ticketing/nfiapark`);
   };
 
@@ -569,6 +629,8 @@ const InterparkBooking = () => {
     sessionStorage.removeItem("interpark_sim_difficulty");
     sessionStorage.removeItem("interpark_sim_delay");
     sessionStorage.removeItem("interpark_sim_start_time");
+    sessionStorage.removeItem("nfiapark_entered_booking");
+    sessionStorage.removeItem("nfiaparkStarted");
     navigate("/ticketing");
   };
 
@@ -668,15 +730,14 @@ const InterparkBooking = () => {
               top={`${d.yOffset}px`}
               left={`${d.xOffset}px`}
               right={`${d.xOffset}px`}
-              bg="purple.850"
-              bgGradient="linear(to-br, purple.700, indigo.800)"
+              bg="gray.900"
               color="white"
               p={3}
               rounded="2xl"
               shadow="2xl"
               zIndex={200}
               border="1.5px solid"
-              borderColor="purple.400"
+              borderColor="gray.700"
               animation="popIn 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275)"
               backdropFilter="blur(6px)"
               cursor="pointer"
@@ -698,14 +759,14 @@ const InterparkBooking = () => {
                 }
               `}</style>
               <HStack spacing={3} align="start">
-                <Image src={d.avatar} w="36px" h="36px" rounded="full" objectFit="cover" border="2px solid" borderColor="purple.300" flexShrink={0} />
+                <Image src={d.avatar} w="36px" h="36px" rounded="full" objectFit="cover" border="2px solid" borderColor="gray.600" flexShrink={0} />
 
                 <VStack align="start" spacing={0.5} flex={1}>
                   <HStack w="full" justify="space-between">
-                    <Text fontSize="10px" fontWeight="extrabold" color="purple.200" letterSpacing="0.3px">
+                    <Text fontSize="10px" fontWeight="extrabold" color="gray.300" letterSpacing="0.3px">
                       fromm • {d.sender}
                     </Text>
-                    <Text fontSize="8px" color="purple.300">1분 전</Text>
+                    <Text fontSize="8px" color="gray.500">1분 전</Text>
                   </HStack>
                   <Text fontSize="11px" fontWeight="black" color="white" lineHeight="1.3">
                     {d.content}
@@ -718,7 +779,7 @@ const InterparkBooking = () => {
                     e.stopPropagation();
                     setDistractions((prev) => prev.filter((item) => item.id !== d.id));
                   }}
-                  color="purple.300"
+                  color="gray.500"
                   _hover={{ color: "white" }}
                   p={1}
                 >
@@ -817,6 +878,120 @@ const InterparkBooking = () => {
           </Box>
         )}
 
+        {phase === "dateSelect" && (
+          <Box flex="1" bg="white" display="flex" flexDirection="column" p={4} overflowY="auto">
+            <VStack spacing={5} align="stretch">
+              <Heading fontSize="16px" fontWeight="bold" color="gray.800" borderLeft="3px solid" borderColor="blue.500" pl={2}>
+                관람일 선택
+              </Heading>
+
+              {/* Calendar */}
+              <Box border="1px solid" borderColor="gray.200" rounded="2xl" p={4}>
+                <Text fontSize="13px" fontWeight="extrabold" color="gray.500" mb={3}>
+                  {new Date().getFullYear()}년 {new Date().getMonth() + 1}월
+                </Text>
+                <Grid templateColumns="repeat(7, 1fr)" gap={2} textAlign="center">
+                  {["일", "월", "화", "수", "목", "금", "토"].map((w) => (
+                    <Text key={w} fontSize="11px" fontWeight="bold" color="gray.400">{w}</Text>
+                  ))}
+                  {(() => {
+                    const today = new Date();
+                    const tomorrow = new Date(today);
+                    tomorrow.setDate(today.getDate() + 1);
+                    const dates = [];
+                    for (let i = 0; i < 7; i++) {
+                      const d = new Date(today);
+                      d.setDate(today.getDate() + i);
+                      const days = ["일", "월", "화", "수", "목", "금", "토"];
+                      const formatted = `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, "0")}.${String(d.getDate()).padStart(2, "0")}`;
+                      const isSelectable = i === 0 || i === 1;
+                      const isSelected = selectedDate === formatted;
+                      dates.push(
+                        <VStack
+                          key={i}
+                          spacing={0}
+                          py={2}
+                          rounded="xl"
+                          cursor={isSelectable ? "pointer" : "not-allowed"}
+                          bg={isSelected ? "blue.600" : "transparent"}
+                          border="1px solid"
+                          borderColor={isSelected ? "blue.600" : "transparent"}
+                          _hover={isSelectable && !isSelected ? { bg: "blue.50" } : {}}
+                          onClick={() => {
+                            if (isSelectable) {
+                              setSelectedDate(formatted);
+                              setSelectedTime("17:00 (1회차)");
+                            }
+                          }}
+                        >
+                          <Text fontSize="11px" color={isSelected ? "white" : isSelectable ? "gray.700" : "gray.300"} fontWeight="bold">
+                            {d.getDate()}
+                          </Text>
+                          <Text fontSize="9px" color={isSelected ? "white" : days[d.getDay()] === "일" ? "red.400" : days[d.getDay()] === "토" ? "blue.400" : "gray.400"}>
+                            {days[d.getDay()]}
+                          </Text>
+                        </VStack>
+                      );
+                    }
+                    return dates;
+                  })()}
+                </Grid>
+              </Box>
+
+              <Divider my={1} />
+
+              {/* 회차 정보 */}
+              <VStack align="stretch" spacing={2}>
+                <Text fontSize="13px" fontWeight="bold" color="gray.700">
+                  회차 선택
+                </Text>
+                <Button
+                  variant={selectedTime ? "solid" : "outline"}
+                  colorScheme={selectedTime ? "blue" : "gray"}
+                  borderColor={selectedTime ? "blue.500" : "gray.200"}
+                  size="md"
+                  w="full"
+                  justifyContent="center"
+                  fontWeight="bold"
+                  rounded="xl"
+                  onClick={() => {
+                    if (selectedDate) setSelectedTime("17:00 (1회차)");
+                  }}
+                  isDisabled={!selectedDate}
+                >
+                  17:00 (1회차)
+                </Button>
+              </VStack>
+
+              {/* 선택 정보 */}
+              <Box bg="gray.50" p={4} rounded="xl" border="1px solid" borderColor="gray.150">
+                <VStack align="stretch" spacing={2} fontSize="13px">
+                  <HStack justify="space-between">
+                    <Text color="gray.400">선택 날짜</Text>
+                    <Text fontWeight="bold" color="gray.800">{selectedDate || "선택하지 않음"}</Text>
+                  </HStack>
+                  <HStack justify="space-between">
+                    <Text color="gray.400">선택 회차</Text>
+                    <Text fontWeight="bold" color="gray.800">{selectedTime || "선택하지 않음"}</Text>
+                  </HStack>
+                </VStack>
+              </Box>
+
+              <Button
+                colorScheme="blue"
+                isDisabled={!selectedDate || !selectedTime}
+                h="52px"
+                rounded="xl"
+                fontWeight="black"
+                size="lg"
+                onClick={handleDateSelectNext}
+              >
+                다음단계 (좌석 선택)
+              </Button>
+            </VStack>
+          </Box>
+        )}
+
         {phase === "captcha" && (
           <CaptchaScreen onSuccess={handleCaptchaSuccess} />
         )}
@@ -860,7 +1035,7 @@ const InterparkBooking = () => {
                 🎉
               </Box>
               <Heading fontSize="22px" fontWeight="900" color="gray.800" mt={2}>
-                예매 완료에 성공했습니다!
+                예매 완료!
               </Heading>
               <Text fontSize="13px" color="gray.500">
                 실제 티켓팅 환경에서 훌륭히 예매를 성공하셨습니다.
@@ -882,7 +1057,7 @@ const InterparkBooking = () => {
               {/* Ticket Header */}
               <Box bgGradient="linear(to-r, blue.500, blue.600)" color="white" py={3.5} px={5} textAlign="center">
                 <Text fontSize="10px" fontWeight="black" letterSpacing="2px" opacity={0.9}>
-                  ENFIAPARK TICKET PRACTICE
+                  NFIAPARK TICKET PRACTICE
                 </Text>
                 <Text fontSize="16px" fontWeight="950" mt={0.5} letterSpacing="0.5px">
                   예매 성공 확인서
@@ -894,7 +1069,7 @@ const InterparkBooking = () => {
                 <VStack align="start" spacing={1}>
                   <Text fontSize="11px" color="gray.400" fontWeight="bold">CONCERT</Text>
                   <Text fontSize="15px" fontWeight="black" color="gray.800" lineHeight="1.3">
-                    2026 N.Flying Concert '&con' in Seoul
+                    2026 N.Flying Concert '&CON' in Seoul
                   </Text>
                 </VStack>
 
@@ -980,7 +1155,7 @@ const InterparkBooking = () => {
               <VStack p={5} spacing={3} align="stretch" bg="white">
                 <Box bg="blue.50" border="1px solid" borderColor="blue.100" p={4} rounded="xl" textAlign="center">
                   <Text fontSize="11px" color="blue.500" fontWeight="bold" letterSpacing="0.5px">
-                    소요 시간 (클릭 순발력)
+                    소요 시간
                   </Text>
                   <Text fontSize="30px" fontWeight="950" color="blue.650" fontFamily="monospace" mt={1} lineHeight="1">
                     {elapsedTime.toFixed(2)}초
@@ -994,40 +1169,94 @@ const InterparkBooking = () => {
                     ))}
                   </HStack>
                   <Text fontSize="9px" color="gray.400" fontFamily="monospace" letterSpacing="1px" textAlign="center">
-                    NFI-{Math.floor(100000 + Math.random() * 900000)}
+                    NF20150520
                   </Text>
                 </VStack>
               </VStack>
 
-              {/* Jaehyun Mode Congratulatory Card inside receipt */}
-              {mode === "jaehyun" && randomMember && (
+              {/* Polaroid Congratulatory Card inside receipt */}
+              {randomMember && (
                 <Box
                   p={6}
-                  bg="purple.50"
+                  bg={mode === "jaehyun" ? "purple.50" : mode === "nboom" ? "red.50" : "blue.50"}
                   borderTop="2px dashed"
-                  borderColor="purple.200"
+                  borderColor={mode === "jaehyun" ? "purple.200" : mode === "nboom" ? "red.200" : "blue.200"}
                   display="flex"
                   justifyContent="center"
                   alignItems="center"
+                  position="relative"
+                  overflow="hidden"
                 >
+                  <style>{`
+                    @keyframes bounceUp {
+                      0%, 100% { transform: translateY(0); }
+                      50% { transform: translateY(-6px); }
+                    }
+                  `}</style>
+                  {/* Extra decorative sparkles for Jaehyun */}
+                  {mode === "jaehyun" && (
+                    <>
+                      <Box position="absolute" top="10px" left="15px" fontSize="16px" style={{ animation: "bounceUp 1.5s ease-in-out infinite" }}>✨</Box>
+                      <Box position="absolute" top="15px" right="20px" fontSize="16px" style={{ animation: "bounceUp 1.8s ease-in-out infinite" }}>💙</Box>
+                      <Box position="absolute" bottom="15px" left="25px" fontSize="16px" style={{ animation: "bounceUp 2s ease-in-out infinite" }}>🥁</Box>
+                      <Box position="absolute" bottom="10px" right="15px" fontSize="16px" style={{ animation: "bounceUp 1.6s ease-in-out infinite" }}>✨</Box>
+                    </>
+                  )}
                   <Box
                     bg="white"
                     p="12px"
-                    pb="32px"
+                    pb="16px"
                     shadow="md"
-                    border="1px solid"
-                    borderColor="gray.200"
+                    borderRadius="4px"
+                    style={{
+                      boxShadow: mode === "jaehyun" ? "0 0 15px rgba(168, 85, 247, 0.5), 0 4px 10px rgba(0,0,0,0.15)" : undefined,
+                      border: mode === "jaehyun" ? "3px solid #b794f4" : "1px solid #e2e8f0",
+                      transform: mode === "jaehyun" ? "rotate(-2deg)" : "none",
+                      transition: "transform 0.3s ease",
+                    }}
+                    _hover={mode === "jaehyun" ? { transform: "rotate(0deg) scale(1.05) !important" } : undefined}
                     maxW="180px"
                     w="full"
+                    position="relative"
                   >
+                    {/* Golden Crown badge for Jaehyun */}
+                    {mode === "jaehyun" && (
+                      <Box
+                        position="absolute"
+                        top="-20px"
+                        left="50%"
+                        transform="translateX(-50%)"
+                        fontSize="22px"
+                        zIndex={10}
+                        style={{ filter: "drop-shadow(0 2px 4px rgba(0,0,0,0.15))" }}
+                      >
+                        👑
+                      </Box>
+                    )}
                     <Image
                       src={randomMember.avatar}
                       w="100%"
                       h="150px"
                       objectFit="cover"
                       border="1px solid"
-                      borderColor="gray.200"
+                      borderColor={mode === "jaehyun" ? "purple.100" : "gray.200"}
+                      borderRadius="2px"
                     />
+                    <VStack spacing={0} mt={3} align="center">
+                      <Text
+                        fontSize="12px"
+                        fontWeight="bold"
+                        color={mode === "jaehyun" ? "purple.700" : "gray.700"}
+                        fontFamily="monospace"
+                      >
+                        {randomMember.name}
+                      </Text>
+                      {mode === "jaehyun" && (
+                        <Text fontSize="8px" color="purple.500" fontWeight="extrabold" letterSpacing="1px" mt={0.5}>
+                          ★ SUPER DRUMMER ★
+                        </Text>
+                      )}
+                    </VStack>
                   </Box>
                 </Box>
               )}
@@ -1052,9 +1281,7 @@ const InterparkBooking = () => {
                     </Text>
                   </HStack>
                   <Text fontSize="13px" color="gray.700" lineHeight="1.6">
-                    이 모드는 사실... 엔피아들이 한참 티켓팅에 집중하고 있을 때, 재현이가 프롬으로 채팅을 보내서 본의 아니게 방해 공작(?)을 펼쳤던 귀여운 실제 해프닝에서 영감을 받아 탄생한 모드예요!
-                    <br /><br />
-                    당시 재현이가 팬들과 수다 떨며 보낸 톡 메시지들이 바로 이 대환장 모드의 시초랍니다. 🤣
+                    이 모드는 엔피아들이 한참 티켓팅에 집중하고 있을 때, 재현이가 프롬을 보내서 본의 아니게 방해 공작(?)을 펼쳤던 실제 해프닝에서 영감을 받아 탄생한 모드예요!
                   </Text>
                   <Box
                     rounded="xl"
@@ -1162,7 +1389,7 @@ const InterparkBooking = () => {
               {/* Ticket Header */}
               <Box bgGradient="linear(to-r, blue.500, blue.600)" color="white" py={3.5} px={5} textAlign="center">
                 <Text fontSize="10px" fontWeight="black" letterSpacing="2px" opacity={0.9}>
-                  ENFIAPARK TICKET PRACTICE
+                  NFIAPARK TICKET PRACTICE
                 </Text>
                 <Text fontSize="16px" fontWeight="950" mt={0.5} letterSpacing="0.5px">
                   예매 실패 확인서
@@ -1174,7 +1401,7 @@ const InterparkBooking = () => {
                 <VStack align="start" spacing={1}>
                   <Text fontSize="11px" color="gray.400" fontWeight="bold">CONCERT</Text>
                   <Text fontSize="15px" fontWeight="black" color="gray.800" lineHeight="1.3">
-                    2026 N.Flying Concert '&con' in Seoul
+                    2026 N.Flying Concert '&CON' in Seoul
                   </Text>
                 </VStack>
 
@@ -1197,7 +1424,7 @@ const InterparkBooking = () => {
                   <VStack align="start" spacing={1}>
                     <Text fontSize="11px" color="gray.400" fontWeight="bold">SEAT</Text>
                     <Text fontSize="14px" fontWeight="black" color="blue.600">
-                      매진 (선택 가능한 좌석 없음)
+                      매진
                     </Text>
                   </VStack>
                   <VStack align="end" spacing={1}>
@@ -1309,6 +1536,27 @@ const InterparkBooking = () => {
             </VStack>
           </VStack>
         )}
+        {/* Robot Member CAPTCHA Modal */}
+        <Modal isOpen={showRobotCaptchaModal} onClose={() => { }} size="xs" isCentered closeOnOverlayClick={false}>
+          <ModalOverlay bg="blackAlpha.800" backdropFilter="blur(2px)" />
+          <ModalContent rounded="2xl" border="1px solid" borderColor="red.100" overflow="hidden">
+            <ModalBody p={0}>
+              <NfiaAuthScreen
+                isRobotCheck={true}
+                onSuccess={() => {
+                  setShowRobotCaptchaModal(false);
+                  toast({
+                    title: "인증되었습니다.",
+                    status: "success",
+                    duration: 1200,
+                    position: "top",
+                  });
+                }}
+              />
+            </ModalBody>
+          </ModalContent>
+        </Modal>
+
         {/* CAPTCHA Overlay */}
         {showPuzzleOverlay && (
           <Box
@@ -1454,7 +1702,12 @@ const InterparkBooking = () => {
                     w="full"
                     onClick={() => {
                       setActiveFullScreenDistraction(null);
-                      setPhase("captcha");
+                      if (savedPhase) {
+                        setPhase(savedPhase);
+                        setSavedPhase(null);
+                      } else {
+                        setPhase("stadium");
+                      }
                     }}
                     fontWeight="bold"
                     size="lg"
@@ -1466,8 +1719,7 @@ const InterparkBooking = () => {
               </VStack>
             ) : (
               <VStack
-                bg="purple.900"
-                bgGradient="linear(to-b, purple.950, indigo.900)"
+                bg="black"
                 color="white"
                 w="full"
                 maxW="400px"
@@ -1475,39 +1727,44 @@ const InterparkBooking = () => {
                 rounded="2xl"
                 overflow="hidden"
                 border="1.5px solid"
-                borderColor="purple.500"
+                borderColor="gray.700"
                 spacing={0}
                 shadow="2xl"
               >
                 {/* Fromm Header */}
-                <Box bg="rgba(0,0,0,0.2)" w="full" px={4} py={3} borderBottom="1px solid" borderColor="purple.800">
+                <Box bg="gray.900" w="full" px={4} py={3} borderBottom="1px solid" borderColor="gray.700">
                   <HStack justify="space-between">
                     <HStack spacing={2}>
                       <IconButton
                         icon={<ArrowLeft size={18} />}
                         aria-label="돌아가기"
                         variant="ghost"
-                        color="purple.200"
-                        _hover={{ color: "white", bg: "purple.800" }}
-                        _active={{ bg: "purple.700" }}
+                        color="gray.400"
+                        _hover={{ color: "white", bg: "gray.800" }}
+                        _active={{ bg: "gray.700" }}
                         rounded="full"
                         size="sm"
                         onClick={() => {
                           setActiveFullScreenDistraction(null);
-                          setPhase("captcha");
+                          if (savedPhase) {
+                            setPhase(savedPhase);
+                            setSavedPhase(null);
+                          } else {
+                            setPhase("stadium");
+                          }
                         }}
                       />
-                      <Image src={activeFullScreenDistraction.avatar} w="32px" h="32px" rounded="full" objectFit="cover" border="1.5px solid" borderColor="purple.300" />
+                      <Image src={activeFullScreenDistraction.avatar} w="32px" h="32px" rounded="full" objectFit="cover" border="1.5px solid" borderColor="gray.500" />
                       <VStack align="start" spacing={0}>
                         <Text fontSize="13px" fontWeight="black">
                           {activeFullScreenDistraction.sender}
                         </Text>
-                        <Text fontSize="9px" color="purple.200">
+                        <Text fontSize="9px" color="gray.400">
                           활동 중 • fromm
                         </Text>
                       </VStack>
                     </HStack>
-                    <Badge colorScheme="purple" variant="subtle" fontSize="9px" px={2} py={0.5} rounded="md">
+                    <Badge colorScheme="gray" variant="subtle" fontSize="9px" px={2} py={0.5} rounded="md">
                       1:1 Chat
                     </Badge>
                   </HStack>
@@ -1518,17 +1775,17 @@ const InterparkBooking = () => {
                   <HStack align="start" spacing={2}>
                     <Image src={activeFullScreenDistraction.avatar} w="28px" h="28px" rounded="full" objectFit="cover" />
                     <VStack align="start" spacing={1}>
-                      <Text fontSize="9px" color="purple.200">
+                      <Text fontSize="9px" color="gray.400">
                         {activeFullScreenDistraction.sender}
                       </Text>
-                      <Box bg="white" color="black" py={2} px={3} rounded="xl" roundedTopLeft="none" fontSize="12px" maxW="240px">
+                      <Box bg="gray.800" color="white" py={2} px={3} rounded="xl" roundedTopLeft="none" fontSize="12px" maxW="240px">
                         {activeFullScreenDistraction.content}
                       </Box>
                     </VStack>
                   </HStack>
 
                   <HStack align="start" spacing={2} justify="flex-end" mt={2}>
-                    <Box bg="indigo.600" color="white" py={2} px={3} rounded="xl" roundedBottomRight="none" fontSize="12px" maxW="240px">
+                    <Box bg="gray.600" color="white" py={2} px={3} rounded="xl" roundedBottomRight="none" fontSize="12px" maxW="240px">
                       나 지금 티켓팅 중이야!! 진짜 떨려 ㅠㅠ
                     </Box>
                   </HStack>
@@ -1536,10 +1793,10 @@ const InterparkBooking = () => {
                   <HStack align="start" spacing={2} mt={2}>
                     <Image src={activeFullScreenDistraction.avatar} w="28px" h="28px" rounded="full" objectFit="cover" />
                     <VStack align="start" spacing={1}>
-                      <Text fontSize="9px" color="purple.200">
+                      <Text fontSize="9px" color="gray.400">
                         {activeFullScreenDistraction.sender}
                       </Text>
-                      <Box bg="white" color="black" py={2} px={3} rounded="xl" roundedTopLeft="none" fontSize="12px" maxW="240px">
+                      <Box bg="gray.800" color="white" py={2} px={3} rounded="xl" roundedTopLeft="none" fontSize="12px" maxW="240px">
                         {getYoutubeReplyMessage(activeFullScreenDistraction.sender)}
                       </Box>
                     </VStack>
@@ -1547,29 +1804,34 @@ const InterparkBooking = () => {
                 </VStack>
 
                 {/* Chat Input Simulation */}
-                <Box bg="rgba(0,0,0,0.3)" w="full" px={4} py={3.5} borderTop="1px solid" borderColor="purple.800">
+                <Box bg="gray.900" w="full" px={4} py={3.5} borderTop="1px solid" borderColor="gray.700">
                   <HStack spacing={2} bg="rgba(255,255,255,0.08)" px={3} py={2} rounded="full">
-                    <Text fontSize="11px" color="purple.300" flex={1}>
+                    <Text fontSize="11px" color="gray.500" flex={1}>
                       메시지를 입력하세요...
                     </Text>
-                    <Box bg="purple.500" w="24px" h="24px" rounded="full" display="flex" alignItems="center" justifyContent="center" fontSize="11px">
+                    <Box bg="gray.600" w="24px" h="24px" rounded="full" display="flex" alignItems="center" justifyContent="center" fontSize="11px">
                       ➔
                     </Box>
                   </HStack>
                 </Box>
 
                 {/* Exit Button Panel */}
-                <Box bg="rgba(0,0,0,0.5)" w="full" p={4} borderTop="1px solid" borderColor="purple.800">
+                <Box bg="gray.900" w="full" p={4} borderTop="1px solid" borderColor="gray.700">
                   <Button
-                    colorScheme="purple"
-                    bg="purple.600"
-                    color="white"
-                    _hover={{ bg: "purple.500" }}
-                    _active={{ bg: "purple.750" }}
+                    colorScheme="gray"
+                    bg="white"
+                    color="black"
+                    _hover={{ bg: "gray.100" }}
+                    _active={{ bg: "gray.200" }}
                     w="full"
                     onClick={() => {
                       setActiveFullScreenDistraction(null);
-                      setPhase("captcha");
+                      if (savedPhase) {
+                        setPhase(savedPhase);
+                        setSavedPhase(null);
+                      } else {
+                        setPhase("stadium");
+                      }
                     }}
                     fontWeight="bold"
                     size="lg"

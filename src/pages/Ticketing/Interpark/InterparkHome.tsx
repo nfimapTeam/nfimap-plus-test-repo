@@ -44,6 +44,22 @@ const InterparkHome = () => {
 
   // Setup modal initially open unless autoStart is true or session exists
   useEffect(() => {
+    const enteredBooking = sessionStorage.getItem("nfiapark_entered_booking") === "true";
+    if (enteredBooking) {
+      sessionStorage.removeItem("interpark_sim_is_started");
+      sessionStorage.removeItem("interpark_sim_difficulty");
+      sessionStorage.removeItem("interpark_sim_delay");
+      sessionStorage.removeItem("interpark_sim_start_time");
+      sessionStorage.removeItem("nfiapark_entered_booking");
+      sessionStorage.removeItem("nfiaparkStarted");
+      setIsStarted(false);
+      setIsOpenTicket(false);
+      setTimeLeft(5);
+      setCurrentTime("19:59:55.000");
+      onOpen();
+      return;
+    }
+
     const hasSavedSession = sessionStorage.getItem("interpark_sim_is_started") === "true";
     const savedDifficulty = sessionStorage.getItem("interpark_sim_difficulty") as "normal" | "nboom" | "jaehyun" | null;
     const savedDelayStr = sessionStorage.getItem("interpark_sim_delay");
@@ -127,19 +143,36 @@ const InterparkHome = () => {
           if (!openTimeRef.current) {
             openTimeRef.current = simulationStartRef.current + (targetDelay * 1000);
           }
+        }
+
+        // 30s Timeout Fail Check
+        const targetOpenTime = simulationStartRef.current + (targetDelay * 1000);
+        if (Date.now() >= targetOpenTime + 30000) {
           if (timerRef.current) clearInterval(timerRef.current);
+          sessionStorage.setItem("nfiaparkStarted", "true");
+          sessionStorage.removeItem("interpark_sim_is_started");
+          sessionStorage.removeItem("interpark_sim_difficulty");
+          sessionStorage.removeItem("interpark_sim_delay");
+          sessionStorage.removeItem("interpark_sim_start_time");
+          navigate(`/ticketing/nfiapark/booking?mode=${targetDifficulty}&failType=timeout`);
         }
       }, 30);
 
-      // If open time has already passed, stop the countdown timer and set clock to 20:00:00.000
-      if (initialSecondsRemaining <= 0) {
+      // If open time has already passed by more than 30 seconds on mount, redirect immediately
+      const openTime = targetStartTime + (targetDelay * 1000);
+      if (Date.now() >= openTime + 30000) {
         if (timerRef.current) clearInterval(timerRef.current);
-        setCurrentTime("20:00:00.000");
+        sessionStorage.setItem("nfiaparkStarted", "true");
+        sessionStorage.removeItem("interpark_sim_is_started");
+        sessionStorage.removeItem("interpark_sim_difficulty");
+        sessionStorage.removeItem("interpark_sim_delay");
+        sessionStorage.removeItem("interpark_sim_start_time");
+        navigate(`/ticketing/nfiapark/booking?mode=${targetDifficulty}&failType=timeout`);
       }
     } else {
       onOpen();
     }
-  }, [onOpen, searchParams]);
+  }, [onOpen, searchParams, navigate]);
 
   // Handle ticketing simulation
   const startSimulation = () => {
@@ -160,8 +193,6 @@ const InterparkHome = () => {
     const startMin = 59;
     const startSec = 60 - delay;
     const baseMs = (startHour * 3600 + startMin * 60 + startSec) * 1000;
-
-    if (timerRef.current) clearInterval(timerRef.current);
 
     timerRef.current = setInterval(() => {
       const elapsedMs = Date.now() - simulationStartRef.current;
@@ -187,7 +218,18 @@ const InterparkHome = () => {
         if (!openTimeRef.current) {
           openTimeRef.current = simulationStartRef.current + (delay * 1000);
         }
+      }
+
+      // 30s Timeout Fail Check
+      const targetOpenTime = simulationStartRef.current + (delay * 1000);
+      if (Date.now() >= targetOpenTime + 30000) {
         if (timerRef.current) clearInterval(timerRef.current);
+        sessionStorage.setItem("nfiaparkStarted", "true");
+        sessionStorage.removeItem("interpark_sim_is_started");
+        sessionStorage.removeItem("interpark_sim_difficulty");
+        sessionStorage.removeItem("interpark_sim_delay");
+        sessionStorage.removeItem("interpark_sim_start_time");
+        navigate(`/ticketing/nfiapark/booking?mode=${difficulty}&failType=timeout`);
       }
     }, 30);
   };
@@ -334,7 +376,7 @@ const InterparkHome = () => {
 
               <VStack align="start" spacing={2} mt={2}>
                 <Heading fontSize="20px" fontWeight="800" lineHeight="1.3">
-                  2026 N.Flying Concert '&con' in Seoul
+                  2026 N.Flying Concert '&CON' in Seoul
                 </Heading>
 
                 <HStack justify="space-between" w="full" mt={2}>
@@ -355,81 +397,6 @@ const InterparkHome = () => {
                   <Text color="gray.400">기간</Text>
                   <Text color="gray.800">{periodStr}</Text>
                 </Grid>
-              </VStack>
-            </VStack>
-          </Box>
-
-          {/* 달력 및 회차 선택 */}
-          <Box bg="white" p={4} rounded="2xl" border="1px solid" borderColor="gray.100" shadow="sm">
-            <VStack spacing={4} align="stretch">
-              {/* 년/월 표시 */}
-              <HStack justify="center" spacing={4} py={1}>
-                <Text fontSize="16px" fontWeight="bold">
-                  {yearMonthStr}
-                </Text>
-              </HStack>
-
-              {/* 달력 그리드 */}
-              <Grid templateColumns="repeat(7, 1fr)" gap={1} textAlign="center" fontSize="13px">
-                {/* 요일 헤더 */}
-                {["일", "월", "화", "수", "목", "금", "토"].map((day, idx) => (
-                  <Text key={day} color={idx === 0 ? "red.500" : "gray.600"} fontWeight="bold" py={1}>
-                    {day}
-                  </Text>
-                ))}
-
-                {/* 날짜 데이터 */}
-                {calendarDays.map((item, idx) => (
-                  <Box key={idx} py={1.5} display="flex" justifyContent="center" alignItems="center">
-                    <Box
-                      w="30px"
-                      h="30px"
-                      display="flex"
-                      alignItems="center"
-                      justifyContent="center"
-                      rounded="full"
-                      fontSize="13px"
-                      fontWeight={item.isSelected || item.isCurrentMonth ? "600" : "normal"}
-                      color={
-                        item.isSelected
-                          ? "white"
-                          : !item.isCurrentMonth
-                            ? "gray.300"
-                            : item.isSunday
-                              ? "red.500"
-                              : "gray.700"
-                      }
-                      bg={item.isSelected ? "blue.600" : "transparent"}
-                    >
-                      {item.day}
-                    </Box>
-                  </Box>
-                ))}
-              </Grid>
-
-              <Divider my={1} />
-
-              {/* 회차 정보 */}
-              <VStack align="stretch" spacing={2}>
-                <Text fontSize="13px" fontWeight="bold" color="gray.700">
-                  회차 선택
-                </Text>
-                <Button
-                  variant="outline"
-                  borderColor="blue.500"
-                  color="blue.600"
-                  bg="blue.50"
-                  size="md"
-                  w="full"
-                  justifyContent="center"
-                  fontWeight="bold"
-                  rounded="xl"
-                >
-                  17:00 (1회차)
-                </Button>
-                <Text fontSize="12px" color="gray.500" textAlign="center" mt={1}>
-                  잔여석이 안내되지 않는 상품이에요.
-                </Text>
               </VStack>
             </VStack>
           </Box>
@@ -521,7 +488,7 @@ const InterparkHome = () => {
                         <Text fontWeight="bold" fontSize="14px" color="red.700">엔붐온 모드 (Hard)</Text>
                       </Radio>
                       <Text fontSize="12px" color="gray.500" pl={6} mt={1}>
-                        콘서트 주요 구역(Floor, 전열)이 극단적으로 빨리 사라집니다. 좌석이 엄청 빠르게 사라집니다.
+                        콘서트 주요 구역(Floor, 전열)이 극단적으로 빠르게 사라집니다.
                       </Text>
                     </Box>
 
@@ -538,7 +505,7 @@ const InterparkHome = () => {
                         <Text fontWeight="bold" fontSize="14px" color="purple.700">대환장 모드 (Crazy)</Text>
                       </Radio>
                       <Text fontSize="12px" color="gray.500" pl={6} mt={1}>
-                        프롬 채팅 및 유튜브 라이브 알림, 슬라이더 퍼즐 검증 등 온갖 극악의 방해 요소가 괴롭히는 대환장 파티입니다.
+                        온갖 극악의 방해 요소가 괴롭히는 대환장 파티입니다.
                       </Text>
                     </Box>
                   </VStack>
@@ -567,7 +534,7 @@ const InterparkHome = () => {
                       >
                         <Radio value={String(sec)} colorScheme="blue" display="none" />
                         <Text fontWeight="bold" fontSize="14px">
-                          {sec === 5 ? "5초 후 (즉시)" : `${sec}초 후`}
+                          {sec === 5 ? "5초 후" : `${sec}초 후`}
                         </Text>
                       </Box>
                     ))}
