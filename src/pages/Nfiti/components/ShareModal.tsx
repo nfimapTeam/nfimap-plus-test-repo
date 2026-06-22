@@ -40,20 +40,24 @@ const ShareModal: React.FC<ShareModalProps> = ({
 
   useEffect(() => {
     const initKakaoSDK = () => {
-      if (window.Kakao && !window.Kakao.isInitialized()) {
+      const appKey = process.env.REACT_APP_SHARE_KAKAO_LINK_KEY;
+      if (appKey && window.Kakao && !window.Kakao.isInitialized()) {
         window.Kakao.cleanup();
-        window.Kakao.init(process.env.REACT_APP_SHARE_KAKAO_LINK_KEY);
+        window.Kakao.init(appKey);
       }
     };
 
-    if (window.Kakao) {
-      initKakaoSDK();
-    } else {
-      const script = document.createElement("script");
-      script.src = "https://t1.kakaocdn.net/kakao_js_sdk/2.7.0/kakao.min.js";
-      script.async = true;
-      script.onload = initKakaoSDK;
-      document.head.appendChild(script);
+    const appKey = process.env.REACT_APP_SHARE_KAKAO_LINK_KEY;
+    if (appKey) {
+      if (window.Kakao) {
+        initKakaoSDK();
+      } else {
+        const script = document.createElement("script");
+        script.src = "https://t1.kakaocdn.net/kakao_js_sdk/2.7.0/kakao.min.js";
+        script.async = true;
+        script.onload = initKakaoSDK;
+        document.head.appendChild(script);
+      }
     }
 
     return () => {
@@ -93,7 +97,7 @@ const ShareModal: React.FC<ShareModalProps> = ({
   };
 
   const handleKakaoShare = () => {
-    if (!window.Kakao || !window.Kakao.Share) {
+    if (!window.Kakao || !window.Kakao.Share || !window.Kakao.isInitialized()) {
       toast({
         title: "카카오 공유 실패",
         description: "카카오 공유 기능을 사용할 수 없습니다.",

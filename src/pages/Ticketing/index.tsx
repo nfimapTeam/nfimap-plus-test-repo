@@ -20,7 +20,7 @@ const TicketingMain = () => {
     {
       id: "interpark",
       name: "엔피아파크 티켓",
-      description: "직관적이고 클래식한 예약 방식. 안심예매 코드 입력과 실시간 좌석 경쟁.",
+      description: "정시에 자동으로 예매 버튼이 활성화됩니다.",
       color: "blue",
       image: "/image/ticket/interpark.webp",
       active: true,
@@ -29,7 +29,7 @@ const TicketingMain = () => {
     {
       id: "ticketlink",
       name: "엔피아링크",
-      description: "새로고침 타이밍과 대기열 시스템. 날짜/회차 선택과 구역 선택 없이 바로 클릭하는 직관적 예매 방식.",
+      description: "직접 새로고침을 해야만 예매 버튼이 활성화됩니다.",
       color: "red",
       image: "/image/ticket/ticketlink.webp",
       active: true,

@@ -206,20 +206,108 @@ const Home = () => {
         >
           <HStack spacing={4} flex={1} overflow="hidden">
             {/* 좌측 썸네일 박스 */}
+            {/* 좌측 썸네일 박스 (디테일한 글래스모피즘 티켓 디자인) */}
             <Box
               w="90px"
               h="65px"
-              bgGradient="linear(to-br, red.400, orange.400)"
+              bgGradient="linear(to-br, #FF416C, #FF4B2B)"
               rounded="lg"
+              position="relative"
+              overflow="hidden"
               display="flex"
               alignItems="center"
               justifyContent="center"
-              p={2.5}
-              color="white"
               shadow="sm"
               flexShrink={0}
             >
-              <Icon as={Ticket} boxSize={8} />
+              {/* 배경 원형 발광 데코 */}
+              <Box
+                position="absolute"
+                w="60px"
+                h="60px"
+                bg="whiteAlpha.200"
+                rounded="full"
+                top="-15px"
+                right="-15px"
+              />
+              <Box
+                position="absolute"
+                w="35px"
+                h="35px"
+                bg="whiteAlpha.150"
+                rounded="full"
+                bottom="-10px"
+                left="-10px"
+              />
+              
+              {/* 미니 티켓 셰이프 */}
+              <Box
+                w="76px"
+                h="42px"
+                bg="rgba(255, 255, 255, 0.16)"
+                backdropFilter="blur(3px)"
+                border="1.5px solid rgba(255, 255, 255, 0.4)"
+                rounded="md"
+                position="relative"
+                display="flex"
+                flexDirection="column"
+                justifyContent="center"
+                alignItems="center"
+                p={1}
+                boxShadow="0 4px 10px rgba(0, 0, 0, 0.12)"
+              >
+                {/* 좌우 절취 홈 (Notches) */}
+                <Box
+                  position="absolute"
+                  left="-5px"
+                  top="50%"
+                  transform="translateY(-50%)"
+                  w="8px"
+                  h="8px"
+                  bg="#FF416C"
+                  rounded="full"
+                  borderRight="1.5px solid rgba(255, 255, 255, 0.4)"
+                />
+                <Box
+                  position="absolute"
+                  right="-5px"
+                  top="50%"
+                  transform="translateY(-50%)"
+                  w="8px"
+                  h="8px"
+                  bg="#FF4B2B"
+                  rounded="full"
+                  borderLeft="1.5px solid rgba(255, 255, 255, 0.4)"
+                />
+
+                {/* 좌우 절취용 미세 점선 (Ticket perforation lines) */}
+                <Box
+                  position="absolute"
+                  left="6px"
+                  top="4px"
+                  bottom="4px"
+                  w="1px"
+                  borderLeft="1px dashed rgba(255, 255, 255, 0.4)"
+                />
+                <Box
+                  position="absolute"
+                  right="6px"
+                  top="4px"
+                  bottom="4px"
+                  w="1px"
+                  borderLeft="1px dashed rgba(255, 255, 255, 0.4)"
+                />
+
+                {/* 티켓 디테일 정보 */}
+                <VStack align="center" spacing={1} justify="center" h="full" w="full" px={3}>
+                  <Text fontSize="7px" fontWeight="black" color="white" transform="scale(0.85)" transformOrigin="center center" lineHeight={1} whiteSpace="nowrap" letterSpacing="0.5px">
+                    N.FIMAP+
+                  </Text>
+                  <Text fontSize="9px" fontWeight="950" color="white" letterSpacing="0.8px" lineHeight={1}>
+                    TICKET
+                  </Text>
+                </VStack>
+              </Box>
             </Box>
 
             {/* 중간 정보 및 카테고리 태그 */}

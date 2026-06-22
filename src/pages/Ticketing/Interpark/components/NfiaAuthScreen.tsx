@@ -62,7 +62,7 @@ const NfiaAuthScreen = ({ onSuccess, isRobotCheck = false }: NfiaAuthScreenProps
     if (option.isCorrect) {
       onSuccess();
     } else {
-      setErrorMsg(`틀렸습니다! 당신은 엔피아가 맞나요? 😢 (찾아야 할 멤버: ${targetName})`);
+      setErrorMsg(`틀렸습니다!😢`);
       setIsShaking(true);
       setTimeout(() => {
         setIsShaking(false);
@@ -108,10 +108,10 @@ const NfiaAuthScreen = ({ onSuccess, isRobotCheck = false }: NfiaAuthScreenProps
         <Text fontSize="15px" color="gray.700" textAlign="center">
           아래 이미지 중 진짜 <Text as="span" fontWeight="900" fontSize="17px" color="black">{
             targetName === "김재현" ? "재현이" :
-            targetName === "서동성" ? "동성이" :
-            targetName === "차훈" ? "훈이" :
-            targetName === "이승협" ? "승협이" :
-            targetName === "유회승" ? "회승이" : targetName
+              targetName === "서동성" ? "동성이" :
+                targetName === "차훈" ? "훈이" :
+                  targetName === "이승협" ? "승협이" :
+                    targetName === "유회승" ? "회승이" : targetName
           }</Text>를 선택하세요.
         </Text>
       </VStack>

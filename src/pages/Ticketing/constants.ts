@@ -1,5 +1,6 @@
 export interface DistractionMember {
   name: string;
+  realName: string;
   avatar: string;
   messages: string[];
   congratMessage: string;
@@ -9,6 +10,7 @@ export interface DistractionMember {
 export const DISTRACTION_MEMBERS: DistractionMember[] = [
   {
     name: "나?김재현 바로바로 멋쟁이란말이지!핳",
+    realName: "김재현",
     avatar: "/image/member/jaehyun.webp",
     messages: [
       "엔피아 뭐해유? ㅇㅅㅇ?",
@@ -23,6 +25,7 @@ export const DISTRACTION_MEMBERS: DistractionMember[] = [
   },
   {
     name: "동성이",
+    realName: "서동성",
     avatar: "/image/member/dongsung.webp",
     messages: [
       "행복한 주말 되세요☺️",
@@ -34,6 +37,7 @@ export const DISTRACTION_MEMBERS: DistractionMember[] = [
   },
   {
     name: "먐미 🐱",
+    realName: "차훈",
     avatar: "/image/member/chahun.webp",
     messages: [
       "혹시 하이염 보러올 생각 있어?",
@@ -46,6 +50,7 @@ export const DISTRACTION_MEMBERS: DistractionMember[] = [
   },
   {
     name: "승협이",
+    realName: "이승협",
     avatar: "/image/member/seunghyub.webp",
     messages: [
       "엔피아 밥 먹었어? 🍚",
@@ -58,6 +63,7 @@ export const DISTRACTION_MEMBERS: DistractionMember[] = [
   },
   {
     name: "승구링끼",
+    realName: "유회승",
     avatar: "/image/member/hewseung.webp",
     messages: [
       "오늘도 참 좋아라!!!👍",

@@ -23,6 +23,8 @@ interface SeatMapProps {
   onSelectSeatSuccess: (seatInfo: string, seatId: string) => void;
   hasFrommDistraction?: boolean;
   onYiseonjwa?: () => void;
+  totalAttempts: number;
+  onIncrementAttempts: () => void;
 }
 
 const SeatMap = ({
@@ -34,6 +36,8 @@ const SeatMap = ({
   onSelectSeatSuccess,
   hasFrommDistraction = false,
   onYiseonjwa,
+  totalAttempts,
+  onIncrementAttempts,
 }: SeatMapProps) => {
   const toast = useToast();
   const [selectedSeatId, setSelectedSeatId] = useState<string | null>(null);
@@ -84,7 +88,8 @@ const SeatMap = ({
     const isNboom = mode === "nboom";
 
     // Simulate instant submit hijack (race condition where another user hits reserve first!)
-    const hijackChance = isJaehyun ? 0.80 : isNboom ? 0.20 : 0.05;
+    onIncrementAttempts();
+    const hijackChance = isJaehyun ? (totalAttempts < 3 ? 0.95 : 0.80) : isNboom ? 0.20 : 0.05;
     let finalSeats = seats;
     if (Math.random() < hijackChance) {
       finalSeats = seats.map((s) =>

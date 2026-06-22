@@ -120,6 +120,7 @@ const TicketlinkBooking = () => {
   const receiptRef = useRef<HTMLDivElement | null>(null);
 
   const [showRobotCaptchaModal, setShowRobotCaptchaModal] = useState<boolean>(false);
+  const [totalAttempts, setTotalAttempts] = useState<number>(0);
   const initialAvailableSeatsCountRef = useRef<number>(0);
 
   // Zoom & Pan states
@@ -766,7 +767,8 @@ const TicketlinkBooking = () => {
       const isJaehyun = mode === "jaehyun";
 
       // Bot hijack seat (이선좌) check on submission
-      const hijackChance = isJaehyun ? 0.80 : isNboom ? 0.20 : 0.05;
+      setTotalAttempts((prev) => prev + 1);
+      const hijackChance = isJaehyun ? (totalAttempts < 3 ? 0.95 : 0.80) : isNboom ? 0.20 : 0.05;
       let isHijacked = false;
       if (Math.random() < hijackChance) {
         isHijacked = true;
@@ -795,7 +797,12 @@ const TicketlinkBooking = () => {
       setPhase("success");
     };
 
-    action();
+    if (mode === "jaehyun") {
+      setPendingAction(() => action);
+      setShowPuzzleOverlay(true);
+    } else {
+      action();
+    }
   };
 
   const handleRetrySimulation = () => {
@@ -806,6 +813,7 @@ const TicketlinkBooking = () => {
     sessionStorage.removeItem("ticketlink_sim_offset");
     sessionStorage.removeItem("nfialink_entered_booking");
     sessionStorage.removeItem("nfialinkStarted");
+    setTotalAttempts(0);
     navigate(`/ticketing/nfialink`);
   };
 
@@ -897,7 +905,7 @@ const TicketlinkBooking = () => {
       const firstDate = list[0].dateObj;
       const formatted = `${firstDate.getFullYear()}.${String(firstDate.getMonth() + 1).padStart(2, "0")}.${String(firstDate.getDate()).padStart(2, "0")}`;
       setSelectedDate(formatted);
-      setSelectedTime("18:00 (1회차)");
+      setSelectedTime("18:00");
     }
   }, []);
 
@@ -1089,7 +1097,7 @@ const TicketlinkBooking = () => {
       )}
 
       {/* Main Flow Content renders here */}
-      <Box flex="1" display="flex" flexDirection="column" overflow="hidden" position="relative">
+      <Box flex="1" display="flex" flexDirection="column" overflow={(phase === "success" || phase === "fail") ? "visible" : "hidden"} position="relative">
         {phase === "queue" && (
           <Box flex="1" display="flex" flexDirection="column" bg="white" justifyContent="center" p={6}>
             <VStack spacing={6} align="stretch" m="auto" maxW="380px" w="full" py={8}>
@@ -1177,7 +1185,7 @@ const TicketlinkBooking = () => {
                           if (d.isSelectable) {
                             setSelectedDate(formatted);
                             // Auto select first time slot
-                            setSelectedTime("18:00 (1회차)");
+                            setSelectedTime("18:00");
                           }
                         }}
                       >
@@ -1739,7 +1747,7 @@ const TicketlinkBooking = () => {
         )}
 
         {phase === "success" && (
-          <Box flex="1" bg="gray.100" p={5} overflowY="auto">
+          <Box bg="gray.100" p={5} w="full">
             <VStack spacing={5} align="stretch" pb={8}>
               {/* Receipt Wrapper to screenshot */}
               <Box
@@ -1886,7 +1894,7 @@ const TicketlinkBooking = () => {
                           color={mode === "jaehyun" ? "purple.700" : "gray.700"}
                           fontFamily="monospace"
                         >
-                          {randomMember.name}
+                          {randomMember.realName}
                         </Text>
                         {mode === "jaehyun" && (
                           <Text fontSize="8px" color="purple.500" fontWeight="extrabold" letterSpacing="1px" mt={0.5}>
@@ -1910,7 +1918,7 @@ const TicketlinkBooking = () => {
                       </Text>
                     </HStack>
                     <Text fontSize="13px" color="gray.700" lineHeight="1.6">
-                      이 모드는 엔피아들이 한참 티켓팅에 집중하고 있을 때, 재현이가 프롬을 보내서 본의 아니게 방해 공작(?)을 펼쳤던 실제 해프닝에서 영감을 받아 탄생한 모드예요!
+                      이 모드는 엔피아들이 한창 티켓팅에 집중하고 있을 때, 재현이가 프롬을 보내서 본의 아니게 방해 공작(?)을 펼쳤던 실제 해프닝에서 영감을 받아 탄생한 모드예요!
                     </Text>
                     <Box
                       rounded="xl"
@@ -1981,7 +1989,7 @@ const TicketlinkBooking = () => {
         )}
 
         {phase === "fail" && (
-          <Box flex="1" bg="gray.100" p={5} overflowY="auto">
+          <Box bg="gray.100" p={5} w="full">
             <VStack spacing={5} align="stretch" pb={8}>
               <Box
                 bg="white"
@@ -2250,8 +2258,9 @@ const TicketlinkBooking = () => {
               bg="black"
               color="white"
               w="full"
-              maxW="400px"
-              h="550px"
+              maxW="360px"
+              h="500px"
+              maxH="85vh"
               rounded="2xl"
               overflow="hidden"
               border="1px solid"
@@ -2363,8 +2372,9 @@ const TicketlinkBooking = () => {
               bg="black"
               color="white"
               w="full"
-              maxW="400px"
-              h="550px"
+              maxW="360px"
+              h="500px"
+              maxH="85vh"
               rounded="2xl"
               overflow="hidden"
               border="1.5px solid"

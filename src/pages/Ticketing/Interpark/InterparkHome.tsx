@@ -21,7 +21,7 @@ import {
   Divider,
   Image,
 } from "@chakra-ui/react";
-import { ArrowLeft, RefreshCw, Clock, HelpCircle } from "lucide-react";
+import { ArrowLeft, RefreshCw, Clock, HelpCircle, Settings } from "lucide-react";
 
 const InterparkHome = () => {
   const navigate = useNavigate();
@@ -338,7 +338,7 @@ const InterparkHome = () => {
             </HStack>
           )}
           <IconButton
-            icon={<RefreshCw size={18} />}
+            icon={<Settings size={18} />}
             aria-label="연습설정 열기"
             variant="ghost"
             rounded="full"
@@ -488,7 +488,7 @@ const InterparkHome = () => {
                         <Text fontWeight="bold" fontSize="14px" color="red.700">엔붐온 모드 (Hard)</Text>
                       </Radio>
                       <Text fontSize="12px" color="gray.500" pl={6} mt={1}>
-                        콘서트 주요 구역(Floor, 전열)이 극단적으로 빠르게 사라집니다.
+                        콘서트 주요 구역이 극단적으로 빠르게 사라집니다.
                       </Text>
                     </Box>
 

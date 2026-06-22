@@ -155,6 +155,7 @@ const InterparkBooking = () => {
   const [savedPhase, setSavedPhase] = useState<BookingPhase | null>(null);
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [yiseonjwaCount, setYiseonjwaCount] = useState<number>(0);
+  const [totalAttempts, setTotalAttempts] = useState<number>(0);
   const [randomMember, setRandomMember] = useState<DistractionMember | null>(null);
 
   const [showRobotCaptchaModal, setShowRobotCaptchaModal] = useState<boolean>(false);
@@ -535,7 +536,7 @@ const InterparkBooking = () => {
       setPhase("seat");
     };
 
-    if (mode === "jaehyun" && Math.random() < 0.5) {
+    if (mode === "jaehyun") {
       setPendingAction(() => action);
       setShowPuzzleOverlay(true);
     } else {
@@ -621,6 +622,7 @@ const InterparkBooking = () => {
     sessionStorage.removeItem("interpark_sim_start_time");
     sessionStorage.removeItem("nfiapark_entered_booking");
     sessionStorage.removeItem("nfiaparkStarted");
+    setTotalAttempts(0);
     navigate(`/ticketing/nfiapark`);
   };
 
@@ -821,7 +823,7 @@ const InterparkBooking = () => {
       </Box>
 
       {/* 단계별 화면 렌더링 */}
-      <Box flex="1" display="flex" flexDirection="column" overflow="hidden" position="relative">
+      <Box flex="1" display="flex" flexDirection="column" overflow={(phase === "success" || phase === "fail") ? "visible" : "hidden"} position="relative">
         {phase === "queue" && (
           <Box flex="1" display="flex" flexDirection="column" bg="white" justifyContent="center" p={6} minH="450px">
             <VStack spacing={6} align="stretch" m="auto" maxW="380px" w="full" py={8}>
@@ -920,7 +922,7 @@ const InterparkBooking = () => {
                           onClick={() => {
                             if (isSelectable) {
                               setSelectedDate(formatted);
-                              setSelectedTime("17:00 (1회차)");
+                              setSelectedTime("17:00");
                             }
                           }}
                         >
@@ -955,11 +957,11 @@ const InterparkBooking = () => {
                   fontWeight="bold"
                   rounded="xl"
                   onClick={() => {
-                    if (selectedDate) setSelectedTime("17:00 (1회차)");
+                    if (selectedDate) setSelectedTime("17:00");
                   }}
                   isDisabled={!selectedDate}
                 >
-                  17:00 (1회차)
+                  17:00
                 </Button>
               </VStack>
 
@@ -969,10 +971,6 @@ const InterparkBooking = () => {
                   <HStack justify="space-between">
                     <Text color="gray.400">선택 날짜</Text>
                     <Text fontWeight="bold" color="gray.800">{selectedDate || "선택하지 않음"}</Text>
-                  </HStack>
-                  <HStack justify="space-between">
-                    <Text color="gray.400">선택 회차</Text>
-                    <Text fontWeight="bold" color="gray.800">{selectedTime || "선택하지 않음"}</Text>
                   </HStack>
                 </VStack>
               </Box>
@@ -1013,11 +1011,14 @@ const InterparkBooking = () => {
             onSelectSeatSuccess={handleSeatSelectSuccess}
             hasFrommDistraction={distractions.some((d) => d.type === "fromm")}
             onYiseonjwa={handleYiseonjwaTrigger}
+            totalAttempts={totalAttempts}
+            onIncrementAttempts={() => setTotalAttempts((prev) => prev + 1)}
           />
         )}
 
         {phase === "success" && (
-          <VStack spacing={6} py={8} px={5} align="stretch" h="full" justify="center" maxW="400px" mx="auto">
+          <Box bg="gray.50" p={5} w="full">
+            <VStack spacing={6} pb={8} align="stretch" maxW="400px" mx="auto" w="full">
             {/* 성공 배너 */}
             <VStack spacing={2} align="center" textAlign="center" py={2}>
               <Box
@@ -1249,7 +1250,7 @@ const InterparkBooking = () => {
                         color={mode === "jaehyun" ? "purple.700" : "gray.700"}
                         fontFamily="monospace"
                       >
-                        {randomMember.name}
+                        {randomMember.realName}
                       </Text>
                       {mode === "jaehyun" && (
                         <Text fontSize="8px" color="purple.500" fontWeight="extrabold" letterSpacing="1px" mt={0.5}>
@@ -1281,7 +1282,7 @@ const InterparkBooking = () => {
                     </Text>
                   </HStack>
                   <Text fontSize="13px" color="gray.700" lineHeight="1.6">
-                    이 모드는 엔피아들이 한참 티켓팅에 집중하고 있을 때, 재현이가 프롬을 보내서 본의 아니게 방해 공작(?)을 펼쳤던 실제 해프닝에서 영감을 받아 탄생한 모드예요!
+                    이 모드는 엔피아들이 한창 티켓팅에 집중하고 있을 때, 재현이가 프롬을 보내서 본의 아니게 방해 공작(?)을 펼쳤던 실제 해프닝에서 영감을 받아 탄생한 모드예요!
                   </Text>
                   <Box
                     rounded="xl"
@@ -1348,10 +1349,12 @@ const InterparkBooking = () => {
               </Button>
             </VStack>
           </VStack>
-        )}
+        </Box>
+      )}
 
         {phase === "fail" && (
-          <VStack spacing={6} py={8} px={5} align="stretch" h="full" justify="center" maxW="400px" mx="auto">
+          <Box bg="gray.50" p={5} w="full">
+            <VStack spacing={6} pb={8} align="stretch" maxW="400px" mx="auto" w="full">
             {/* 실패 배너 */}
             <VStack spacing={2} align="center" textAlign="center" py={2}>
               <Box
@@ -1535,7 +1538,8 @@ const InterparkBooking = () => {
               </Button>
             </VStack>
           </VStack>
-        )}
+        </Box>
+      )}
         {/* Robot Member CAPTCHA Modal */}
         <Modal isOpen={showRobotCaptchaModal} onClose={() => { }} size="xs" isCentered closeOnOverlayClick={false}>
           <ModalOverlay bg="blackAlpha.800" backdropFilter="blur(2px)" />
@@ -1604,8 +1608,9 @@ const InterparkBooking = () => {
                 bg="black"
                 color="white"
                 w="full"
-                maxW="400px"
-                h="550px"
+                maxW="360px"
+                h="500px"
+                maxH="85vh"
                 rounded="2xl"
                 overflow="hidden"
                 border="1px solid"
@@ -1722,8 +1727,9 @@ const InterparkBooking = () => {
                 bg="black"
                 color="white"
                 w="full"
-                maxW="400px"
-                h="550px"
+                maxW="360px"
+                h="500px"
+                maxH="85vh"
                 rounded="2xl"
                 overflow="hidden"
                 border="1.5px solid"
