@@ -403,26 +403,40 @@ const InterparkBooking = () => {
     };
   }, [mode, phase, startTime, selectedSection]);
 
-  // Check for failure (all seats sold out across all sections and no seat selected)
+  // Check for failure (all seats sold out across sections/selected section and no seat selected)
   useEffect(() => {
-    if (phase === "queue" || phase === "success" || phase === "fail") return;
+    if (phase === "queue" || phase === "success" || phase === "fail" || phase === "dateSelect" || phase === "captcha") return;
 
-    const totalAvailable = sections.reduce((sum, sec) => sum + sec.remainingSeats, 0);
+    let isFailed = false;
 
-    let hasSelectedSeat = false;
-    if (selectedSection) {
-      const seatsList = detailedSeats[selectedSection];
-      if (seatsList && seatsList.some((s) => s.status === "selected" && !s.hijacked)) {
-        hasSelectedSeat = true;
+    if (phase === "stadium") {
+      const totalAvailable = sections.reduce((sum, sec) => sum + sec.remainingSeats, 0);
+      if (totalAvailable === 0) {
+        isFailed = true;
+      }
+    } else if (phase === "seat" && selectedSection) {
+      const seatsList = detailedSeats[selectedSection] || [];
+      const availableCount = seatsList.filter((s) => s.status === "available" && !s.hijacked).length;
+      const hasSelectedSeat = seatsList.some((s) => s.status === "selected" && !s.hijacked);
+      if (availableCount === 0 && !hasSelectedSeat) {
+        isFailed = true;
       }
     }
 
-    if (totalAvailable === 0 && !hasSelectedSeat) {
+    if (isFailed) {
       const endTime = performance.now();
       setElapsedTime((delayMs / 1000) + ((endTime - globalStartTimeRef.current) / 1000));
       setPhase("fail");
     }
   }, [sections, detailedSeats, phase, startTime, selectedSection]);
+
+  // Cleanup overlays on success/fail
+  useEffect(() => {
+    if (phase === "fail" || phase === "success") {
+      setShowRobotCaptchaModal(false);
+      setShowPuzzleOverlay(false);
+    }
+  }, [phase]);
 
   // Distraction event spawner loop in Jaehyun Mode
   useEffect(() => {

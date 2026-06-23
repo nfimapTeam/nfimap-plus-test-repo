@@ -155,11 +155,11 @@ const SeatMap = ({
         rounded="xl"
         border="1px solid"
         borderColor="gray.200"
-        overflow="auto"
+        overflow="hidden"
         flex="1"
         display="flex"
         flexDirection="column"
-        minH="250px"
+        minH="unset"
       >
         <VStack spacing={2} align="stretch" m="auto" py={4}>
           {rowNames.map((rowName) => (

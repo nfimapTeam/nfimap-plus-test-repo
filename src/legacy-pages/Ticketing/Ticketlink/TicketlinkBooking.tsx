@@ -608,6 +608,15 @@ const TicketlinkBooking = () => {
     }
   }, [seats, phase, selectedSeatId, showCaptchaModal, startTime]);
 
+  // Cleanup overlays on success/fail
+  useEffect(() => {
+    if (phase === "fail" || phase === "success") {
+      setShowRobotCaptchaModal(false);
+      setShowPuzzleOverlay(false);
+      setShowCaptchaModal(false);
+    }
+  }, [phase]);
+
   // Distraction event spawner (Crazy)
   useEffect(() => {
     if (mode !== "jaehyun" || phase === "success" || phase === "fail" || phase === "queue" || showCaptchaModal) {
