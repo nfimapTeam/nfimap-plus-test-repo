@@ -17,34 +17,36 @@ const Layout = ({ children }: LayoutProps) => {
   const isBookingResultPage = useRecoilValue(bookingResultState);
   const pathname = usePathname();
   const isBookingPage = pathname?.includes("/booking") ?? false;
+  const isTicketingPage = pathname?.includes("/ticketing/nfiapark") || pathname?.includes("/ticketing/nfialink");
+  const isScreenFitPage = isTicketingPage && !isBookingResultPage;
 
   return (
     <Box 
-      height={isBookingResultPage ? "auto" : "100svh"}
+      height={isScreenFitPage ? "100svh" : "auto"}
       minHeight="100svh"
-      maxHeight={isBookingResultPage ? "none" : "100svh"}
+      maxHeight={isScreenFitPage ? "100svh" : "none"}
       display="flex" 
       justifyContent="center" 
       backgroundColor={bg}
-      overflow={isBookingResultPage ? "visible" : "hidden"}
+      overflow={isScreenFitPage ? "hidden" : "visible"}
     >
       <Container 
         maxW="480px"
-        height={isBookingResultPage ? "auto" : "100svh"}
-        minHeight={isBookingResultPage ? "100svh" : "unset"}
-        maxHeight={isBookingResultPage ? "none" : "100svh"}
+        height={isScreenFitPage ? "100svh" : "auto"}
+        minHeight={isScreenFitPage ? "unset" : "100svh"}
+        maxHeight={isScreenFitPage ? "100svh" : "none"}
         p={0}
         backgroundColor="white"
         boxShadow="lg"
         display="flex"
         flexDirection="column"
-        overflow={isBookingResultPage ? "visible" : "hidden"}
+        overflow={isScreenFitPage ? "hidden" : "visible"}
       >
         {!isBookingPage && <Header />}
         <main style={{ 
-          height: isBookingResultPage ? "auto" : (isBookingPage ? "100svh" : "calc(100svh - 68px)"),
-          maxHeight: isBookingResultPage ? "none" : (isBookingPage ? "100svh" : "calc(100svh - 68px)"),
-          overflow: isBookingResultPage ? "visible" : "hidden",
+          height: isScreenFitPage ? (isBookingPage ? "100svh" : "calc(100svh - 68px)") : "auto",
+          maxHeight: isScreenFitPage ? (isBookingPage ? "100svh" : "calc(100svh - 68px)") : "none",
+          overflow: isScreenFitPage ? "hidden" : "visible",
           display: "flex",
           flexDirection: "column",
           flex: 1
