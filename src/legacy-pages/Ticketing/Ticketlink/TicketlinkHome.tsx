@@ -36,6 +36,7 @@ const TicketlinkHome = () => {
   const [difficulty, setDifficulty] = useState<"normal" | "nboom" | "jaehyun">("normal");
   const [delay, setDelay] = useState<number>(5); // seconds before open
   const [nickname, setNickname] = useState<string>("");
+  const [isNicknameModalOpen, setIsNicknameModalOpen] = useState<boolean>(false);
 
   const toast = useToast();
 
@@ -215,6 +216,7 @@ const TicketlinkHome = () => {
     }
 
     onClose();
+    setIsNicknameModalOpen(false);
     setIsStarted(true);
     setIsOpenTicket(false);
     setShowGuide(true);
@@ -716,29 +718,6 @@ const TicketlinkHome = () => {
                 </RadioGroup>
               </VStack>
 
-              {/* 닉네임 입력 (대환장모드 전용) */}
-              {difficulty === "jaehyun" && (
-                <VStack align="start" spacing={3} w="full" bg="purple.50" p={4} rounded="2xl" border="1.5px solid" borderColor="purple.200">
-                  <Text fontSize="14px" fontWeight="black" color="purple.700">
-                    👾 랭킹 등록용 닉네임 (최대 8글자)
-                  </Text>
-                  <Input
-                    placeholder="닉네임을 입력하세요"
-                    value={nickname}
-                    onChange={(e) => {
-                      if (e.target.value.length <= 8) {
-                        setNickname(e.target.value);
-                      }
-                    }}
-                    textAlign="center"
-                    fontSize="15px"
-                    fontWeight="bold"
-                    bg="white"
-                    borderColor="purple.300"
-                    _focus={{ borderColor: "purple.500", shadow: "0 0 8px rgba(168,85,247,0.3)" }}
-                  />
-                </VStack>
-              )}
             </VStack>
           </ModalBody>
           <ModalFooter borderTop="1px solid" borderColor="gray.100">
@@ -760,13 +739,101 @@ const TicketlinkHome = () => {
               >
                 뒤로가기
               </Button>
-              <Button colorScheme="red" bg="#FF3838" _hover={{ bg: "#E02E2E" }} w="65%" size="lg" rounded="xl" onClick={startSimulation} fontWeight="bold">
+              <Button
+                colorScheme="red"
+                bg="#FF3838"
+                _hover={{ bg: "#E02E2E" }}
+                w="65%"
+                size="lg"
+                rounded="xl"
+                onClick={() => {
+                  if (difficulty === "jaehyun") {
+                    onClose();
+                    setIsNicknameModalOpen(true);
+                  } else {
+                    startSimulation();
+                  }
+                }}
+                fontWeight="bold"
+              >
                 연습 시작하기
               </Button>
             </HStack>
           </ModalFooter>
         </ModalContent>
       </Modal>
+
+      {/* 닉네임 입력 모달 (대환장모드 진입 시에만 노출) */}
+      <Modal isOpen={isNicknameModalOpen} onClose={() => setIsNicknameModalOpen(false)} isCentered closeOnOverlayClick={false}>
+        <ModalOverlay bg="blackAlpha.800" backdropFilter="blur(3px)" />
+        <ModalContent mx={4} rounded="2xl" bg="rgba(20, 15, 35, 0.98)" border="1px solid" borderColor="purple.500" color="white" shadow="0 10px 30px rgba(168, 85, 247, 0.4)">
+          <ModalHeader textAlign="center" borderBottom="1px solid" borderColor="rgba(255,255,255,0.08)" fontSize="18px" fontWeight="black" letterSpacing="1px">
+            👾 대환장 모드 랭킹 등록
+          </ModalHeader>
+          <ModalBody py={6}>
+            <VStack spacing={5} align="stretch">
+              <Text fontSize="13px" color="purple.200" fontWeight="bold" textAlign="center" lineHeight="1.6">
+                대환장모드는 명예의 전당 등록이 가능합니다.<br />
+                랭킹에 등록될 닉네임을 입력해 주세요!
+              </Text>
+              <Input
+                placeholder="닉네임 입력 (최대 8글자)"
+                value={nickname}
+                onChange={(e) => {
+                  if (e.target.value.length <= 8) {
+                    setNickname(e.target.value);
+                  }
+                }}
+                textAlign="center"
+                fontSize="16px"
+                fontWeight="black"
+                bg="rgba(255, 255, 255, 0.05)"
+                borderColor="purple.400"
+                color="white"
+                h="50px"
+                _placeholder={{ color: "purple.300" }}
+                _focus={{ borderColor: "purple.300", shadow: "0 0 10px rgba(168,85,247,0.5)" }}
+                autoFocus
+              />
+            </VStack>
+          </ModalBody>
+          <ModalFooter borderTop="1px solid" borderColor="rgba(255,255,255,0.08)">
+            <HStack spacing={3} w="full">
+              <Button
+                variant="outline"
+                w="35%"
+                size="lg"
+                rounded="xl"
+                borderColor="rgba(255,255,255,0.15)"
+                color="gray.300"
+                _hover={{ bg: "rgba(255,255,255,0.05)" }}
+                onClick={() => {
+                  setIsNicknameModalOpen(false);
+                  onOpen(); // Go back to configuration modal
+                }}
+                fontWeight="bold"
+              >
+                이전으로
+              </Button>
+              <Button
+                bgGradient="linear(to-r, #EC4899, #8B5CF6)"
+                color="white"
+                _hover={{ bgGradient: "linear(to-r, #D53F8C, #764BA2)", transform: "scale(1.02)" }}
+                _active={{ transform: "scale(0.98)" }}
+                w="65%"
+                size="lg"
+                rounded="xl"
+                onClick={startSimulation}
+                fontWeight="bold"
+                shadow="0 4px 15px rgba(236, 72, 153, 0.4)"
+              >
+                연습 시작하기
+              </Button>
+            </HStack>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
+
 
       {/* CSS Animation */}
       <style>{`
