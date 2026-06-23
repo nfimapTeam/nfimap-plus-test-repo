@@ -1,6 +1,6 @@
-import React, { useEffect } from "react";
+import React from "react";
 import { Box, Flex, Image } from "@chakra-ui/react";
-import { Link } from "react-router-dom";
+import Link from "next/link";
 
 const Header = () => {
 
@@ -15,7 +15,7 @@ const Header = () => {
       position="relative"
     >
       <Flex justifyContent="center" flex="1">
-        <Link to="/">
+        <Link href="/">
           <Image
             src="/image/logo/logo.svg"
             alt="MyApp Logo"
