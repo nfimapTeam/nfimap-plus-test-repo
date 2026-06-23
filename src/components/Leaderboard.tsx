@@ -21,31 +21,34 @@ interface LeaderboardProps {
   ticketType: "nfiapark" | "nfialink";
   currentUserName?: string;
   currentUserScore?: number;
+  currentUserId?: number;
 }
 
 interface RankingEntry {
+  id: number;
   name: string;
   score: number;
   created_at: string;
 }
 
 const mockRankings: RankingEntry[] = [
-  { name: "회승이목청대장", score: 85200, created_at: new Date().toISOString() },
-  { name: "옥탑방고양이", score: 76400, created_at: new Date().toISOString() },
-  { name: "재현이의스틱", score: 68900, created_at: new Date().toISOString() },
-  { name: "승협보컬갓", score: 61200, created_at: new Date().toISOString() },
-  { name: "차훈고양이발톱", score: 55600, created_at: new Date().toISOString() },
-  { name: "동성베이스폭주", score: 48900, created_at: new Date().toISOString() },
-  { name: "환절기무한반복", score: 42100, created_at: new Date().toISOString() },
-  { name: "엔플라잉짱짱맨", score: 35000, created_at: new Date().toISOString() },
-  { name: "티켓팅마스터", score: 29000, created_at: new Date().toISOString() },
-  { name: "이선좌컬렉터", score: 18000, created_at: new Date().toISOString() },
+  { id: 1, name: "회승이목청대장", score: 85200, created_at: new Date().toISOString() },
+  { id: 2, name: "옥탑방고양이", score: 76400, created_at: new Date().toISOString() },
+  { id: 3, name: "재현이의스틱", score: 68900, created_at: new Date().toISOString() },
+  { id: 4, name: "승협보컬갓", score: 61200, created_at: new Date().toISOString() },
+  { id: 5, name: "차훈고양이발톱", score: 55600, created_at: new Date().toISOString() },
+  { id: 6, name: "동성베이스폭주", score: 48900, created_at: new Date().toISOString() },
+  { id: 7, name: "환절기무한반복", score: 42100, created_at: new Date().toISOString() },
+  { id: 8, name: "엔플라잉짱짱맨", score: 35000, created_at: new Date().toISOString() },
+  { id: 9, name: "티켓팅마스터", score: 29000, created_at: new Date().toISOString() },
+  { id: 10, name: "이선좌컬렉터", score: 18000, created_at: new Date().toISOString() },
 ];
 
 export const Leaderboard: React.FC<LeaderboardProps> = ({
   ticketType,
   currentUserName,
   currentUserScore,
+  currentUserId,
 }) => {
   const [rankings, setRankings] = useState<RankingEntry[]>([]);
   const [loading, setLoading] = useState(true);
@@ -62,7 +65,7 @@ export const Leaderboard: React.FC<LeaderboardProps> = ({
         if (hasSupabaseConfig) {
           const { data, error } = await supabase
             .from("ticket_rankings")
-            .select("name, score, created_at")
+            .select("id, name, score, created_at")
             .eq("ticket_type", ticketType)
             .order("score", { ascending: false })
             .limit(100);
@@ -70,22 +73,25 @@ export const Leaderboard: React.FC<LeaderboardProps> = ({
           if (error) throw error;
           
           let rawList = (data as RankingEntry[]) || [];
+          let uniqueList = [...rawList];
 
-          // Deduplicate names, keeping the highest score (first occurrence)
-          const uniqueList: RankingEntry[] = [];
-          const seenNames = new Set<string>();
-          for (const item of rawList) {
-            if (!seenNames.has(item.name)) {
-              seenNames.add(item.name);
-              uniqueList.push(item);
-            }
-          }
-
-          // If current user is not in top unique list, append
-          if (currentUserName && currentUserScore !== undefined) {
-            const hasUser = uniqueList.some((item) => item.name === currentUserName);
+          // If current user is not in top list, append
+          if (currentUserId && currentUserName && currentUserScore !== undefined) {
+            const hasUser = uniqueList.some((item) => item.id === currentUserId);
             if (!hasUser) {
               uniqueList.push({
+                id: currentUserId,
+                name: currentUserName,
+                score: currentUserScore,
+                created_at: new Date().toISOString(),
+              });
+              uniqueList.sort((a, b) => b.score - a.score);
+            }
+          } else if (currentUserName && currentUserScore !== undefined) {
+            const hasUser = uniqueList.some((item) => item.name === currentUserName && item.score === currentUserScore);
+            if (!hasUser) {
+              uniqueList.push({
+                id: 99999,
                 name: currentUserName,
                 score: currentUserScore,
                 created_at: new Date().toISOString(),
@@ -114,13 +120,17 @@ export const Leaderboard: React.FC<LeaderboardProps> = ({
           }
 
           if (currentUserName && currentUserScore !== undefined) {
-            const existingIdx = savedList.findIndex((item) => item.name === currentUserName);
+            const existingIdx = currentUserId 
+              ? savedList.findIndex((item) => item.id === currentUserId)
+              : savedList.findIndex((item) => item.name === currentUserName && item.score === currentUserScore);
+
             if (existingIdx !== -1) {
               if (currentUserScore > savedList[existingIdx].score) {
                 savedList[existingIdx].score = currentUserScore;
               }
             } else {
               savedList.push({
+                id: currentUserId || Math.floor(Math.random() * 9000) + 1000,
                 name: currentUserName,
                 score: currentUserScore,
                 created_at: new Date().toISOString(),
@@ -141,7 +151,7 @@ export const Leaderboard: React.FC<LeaderboardProps> = ({
     };
 
     fetchRankings();
-  }, [ticketType, currentUserName, currentUserScore]);
+  }, [ticketType, currentUserName, currentUserScore, currentUserId]);
 
   // Keep up to 50 rankings for display
   const maxRankingsToShow = rankings.slice(0, 50);
@@ -156,16 +166,19 @@ export const Leaderboard: React.FC<LeaderboardProps> = ({
 
   // Auto-focus page containing the current user's entry
   useEffect(() => {
-    if (currentUserName && currentUserScore !== undefined && rankings.length > 0) {
-      const userIndex = rankings.findIndex(
-        (item) => item.name === currentUserName && item.score === currentUserScore
-      );
+    if (rankings.length > 0) {
+      const userIndex = currentUserId 
+        ? rankings.findIndex((item) => item.id === currentUserId)
+        : (currentUserName && currentUserScore !== undefined)
+          ? rankings.findIndex((item) => item.name === currentUserName && item.score === currentUserScore)
+          : -1;
+
       if (userIndex !== -1 && userIndex < 50) {
         const userPage = Math.floor(userIndex / itemsPerPage) + 1;
         setCurrentPage(userPage);
       }
     }
-  }, [rankings, currentUserName, currentUserScore]);
+  }, [rankings, currentUserId, currentUserName, currentUserScore]);
 
   const displayedRankings = maxRankingsToShow.slice(
     (currentPage - 1) * itemsPerPage,
@@ -311,15 +324,17 @@ export const Leaderboard: React.FC<LeaderboardProps> = ({
             <Table size="sm" variant="unstyled">
               <Thead bg="rgba(255, 255, 255, 0.03)" borderBottom="1px solid" borderColor="rgba(255, 255, 255, 0.08)">
                 <Tr>
-                  <Th py={3} color="purple.200" fontSize="10px" fontWeight="black" textAlign="center" w="80px" letterSpacing="1px">RANK</Th>
+                  <Th py={3} color="purple.200" fontSize="10px" fontWeight="black" textAlign="center" w="65px" letterSpacing="1px">RANK</Th>
                   <Th py={3} color="purple.200" fontSize="10px" fontWeight="black" letterSpacing="1px">PLAYER</Th>
-                  <Th py={3} color="purple.200" fontSize="10px" fontWeight="black" textAlign="right" pr={5} letterSpacing="1px">SCORE</Th>
+                  <Th py={3} color="purple.200" fontSize="10px" fontWeight="black" textAlign="right" pr={5} w="90px" letterSpacing="1px">SCORE</Th>
                 </Tr>
               </Thead>
               <Tbody>
                 {displayedRankings.map((entry, idx) => {
                   const rank = (currentPage - 1) * itemsPerPage + idx + 1;
-                  const isCurrentUser = entry.name === currentUserName;
+                  const isCurrentUser = currentUserId 
+                    ? entry.id === currentUserId 
+                    : (entry.name === currentUserName && entry.score === currentUserScore);
                   
                   return (
                     <Tr
@@ -330,28 +345,53 @@ export const Leaderboard: React.FC<LeaderboardProps> = ({
                       _hover={{ bg: isCurrentUser ? "rgba(168, 85, 247, 0.18)" : "rgba(255, 255, 255, 0.03)", transform: "translateX(2px)" }}
                       transition="all 0.2s cubic-bezier(0.16, 1, 0.3, 1)"
                     >
-                      <Td py={2.5} textAlign="center" verticalAlign="middle">
+                      <Td py={2.5} textAlign="center" verticalAlign="middle" w="65px">
                         {getRankBadge(rank)}
                       </Td>
-                      <Td py={2.5} verticalAlign="middle">
-                        <HStack spacing={1.5} display="inline-flex" verticalAlign="middle">
+                      <Td py={2.5} verticalAlign="middle" minW={0}>
+                        <HStack spacing={0.5} display="flex" w="full" minW={0} alignItems="center">
                           <Text
                             fontSize="13px"
                             fontWeight={isCurrentUser ? "950" : "bold"}
                             color={isCurrentUser ? "#F472B6" : "gray.200"}
                             noOfLines={1}
-                            maxW="110px"
+                            flexShrink={1}
+                            minW={0}
+                            whiteSpace="nowrap"
                           >
                             {entry.name}
                           </Text>
+                          {entry.id && (
+                            <Text
+                              as="span"
+                              flexShrink={0}
+                              fontSize="10px"
+                              color={isCurrentUser ? "pink.300" : "purple.400"}
+                              fontWeight="bold"
+                              fontFamily="monospace"
+                              whiteSpace="nowrap"
+                            >
+                              -{entry.id}
+                            </Text>
+                          )}
                           {isCurrentUser && (
-                            <Badge flexShrink={0} bg="#EC4899" color="white" fontSize="9px" px={1.5} py={0.1} rounded="md" shadow="0 0 5px #EC4899">
+                            <Badge
+                              flexShrink={0}
+                              bg="#EC4899"
+                              color="white"
+                              fontSize="9px"
+                              px={1.5}
+                              py={0.1}
+                              rounded="md"
+                              shadow="0 0 5px #EC4899"
+                              ml={1.5}
+                            >
                               YOU
                             </Badge>
                           )}
                         </HStack>
                       </Td>
-                      <Td py={2.5} textAlign="right" verticalAlign="middle" pr={5}>
+                      <Td py={2.5} textAlign="right" verticalAlign="middle" pr={5} w="90px">
                         <Text
                           fontSize="14px"
                           fontWeight="black"

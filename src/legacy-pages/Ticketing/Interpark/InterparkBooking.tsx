@@ -193,6 +193,7 @@ const InterparkBooking = () => {
   const [currentUserName, setCurrentUserName] = useState<string>("");
   const [currentUserScore, setCurrentUserScore] = useState<number | undefined>(undefined);
   const [currentUserBaseScore, setCurrentUserBaseScore] = useState<number>(0);
+  const [currentUserId, setCurrentUserId] = useState<number | undefined>(undefined);
 
   // Initialize state once at mount or reset
   const initializeBookingSession = useCallback(() => {
@@ -704,41 +705,54 @@ const InterparkBooking = () => {
         setCurrentUserScore(finalScore);
 
         const submitScore = async () => {
+          let savedId = localStorage.getItem("nfiapark_ranking_id");
+          let finalId: number | null = savedId ? Number(savedId) : null;
+
           if (hasSupabaseConfig) {
             try {
-              const { data, error: selectError } = await supabase
-                .from("ticket_rankings")
-                .select("id, score")
-                .eq("ticket_type", "nfiapark")
-                .eq("name", nicknameVal)
-                .maybeSingle();
-
-              if (selectError) {
-                console.error("Select error from Supabase:", selectError);
-                return;
+              let existingRecord = null;
+              if (finalId) {
+                const { data, error } = await supabase
+                  .from("ticket_rankings")
+                  .select("id, score")
+                  .eq("id", finalId)
+                  .maybeSingle();
+                if (!error && data) {
+                  existingRecord = data;
+                }
               }
 
-              if (!data) {
-                const { error: insertError } = await supabase
+              if (!existingRecord) {
+                const { data, error: insertError } = await supabase
                   .from("ticket_rankings")
                   .insert({
                     ticket_type: "nfiapark",
                     name: nicknameVal,
                     score: finalScore,
-                  });
+                  })
+                  .select("id")
+                  .single();
+
                 if (insertError) {
                   console.error("Insert error from Supabase:", insertError);
+                } else if (data) {
+                  finalId = data.id;
+                  localStorage.setItem("nfiapark_ranking_id", String(data.id));
                 }
-              } else if (finalScore > Number(data.score)) {
+              } else if (finalScore > Number(existingRecord.score)) {
                 const { error: updateError } = await supabase
                   .from("ticket_rankings")
                   .update({
                     score: finalScore,
                   })
-                  .eq("id", data.id);
+                  .eq("id", existingRecord.id);
+
                 if (updateError) {
                   console.error("Update error from Supabase:", updateError);
                 }
+              }
+              if (finalId) {
+                setCurrentUserId(finalId);
               }
             } catch (err) {
               console.error("Failed to submit score to Supabase:", err);
@@ -748,13 +762,20 @@ const InterparkBooking = () => {
             try {
               const savedStr = localStorage.getItem(localKey);
               let savedList = savedStr ? JSON.parse(savedStr) : [];
-              const existingIdx = savedList.findIndex((item: any) => item.name === nicknameVal);
+              
+              if (!finalId) {
+                finalId = Math.floor(Math.random() * 9000) + 1000;
+                localStorage.setItem("nfiapark_ranking_id", String(finalId));
+              }
+
+              const existingIdx = savedList.findIndex((item: any) => item.id === finalId);
               if (existingIdx !== -1) {
                 if (finalScore > savedList[existingIdx].score) {
                   savedList[existingIdx].score = finalScore;
                 }
               } else {
                 savedList.push({
+                  id: finalId,
                   name: nicknameVal,
                   score: finalScore,
                   created_at: new Date().toISOString(),
@@ -762,6 +783,7 @@ const InterparkBooking = () => {
               }
               savedList.sort((a: any, b: any) => b.score - a.score);
               localStorage.setItem(localKey, JSON.stringify(savedList));
+              setCurrentUserId(finalId);
             } catch (e) {
               console.error("Local storage ranking update failed:", e);
             }
@@ -1513,6 +1535,7 @@ const InterparkBooking = () => {
                     ticketType="nfiapark"
                     currentUserName={currentUserName}
                     currentUserScore={currentUserScore}
+                    currentUserId={currentUserId}
                   />
                 </VStack>
               )}
