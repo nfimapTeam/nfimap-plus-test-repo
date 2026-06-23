@@ -213,6 +213,8 @@ const TicketlinkHome = () => {
         return;
       }
       localStorage.setItem("nickname", nickname.trim());
+      localStorage.removeItem("nfialink_ranking_id");
+      setNickname("");
     }
 
     onClose();
@@ -768,7 +770,7 @@ const TicketlinkHome = () => {
         <ModalOverlay bg="blackAlpha.850" backdropFilter="blur(4px)" />
         <ModalContent mx={4} rounded="2xl" bg="rgba(25, 12, 12, 0.98)" border="1.5px solid" borderColor="red.500" color="white" shadow="0 10px 30px rgba(229, 62, 62, 0.3)">
           <ModalHeader textAlign="center" borderBottom="1px solid" borderColor="rgba(255,255,255,0.08)" fontSize="18px" fontWeight="black" letterSpacing="1px">
-            🗳️ 엔피아링크 랭킹 등록
+            🏆 엔피아링크 랭킹 등록
           </ModalHeader>
           <ModalBody py={6}>
             <VStack spacing={5} align="stretch">

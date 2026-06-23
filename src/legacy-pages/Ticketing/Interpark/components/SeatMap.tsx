@@ -189,17 +189,17 @@ const SeatMap = ({
                     }
 
                     return (
-                       <Box
-                         key={seat.id}
-                         w={{ base: "8px", sm: "10px" }}
-                         h={{ base: "8px", sm: "10px" }}
-                         bg={bgColor}
-                         rounded="1.5px"
-                         cursor={seat.status === "occupied" ? "default" : "pointer"}
-                         transition="0.1s"
-                         _hover={seat.status !== "occupied" ? { transform: "scale(1.3)" } : {}}
-                         onClick={() => handleSeatClick(seat)}
-                       />
+                      <Box
+                        key={seat.id}
+                        w={{ base: "8px", sm: "10px" }}
+                        h={{ base: "8px", sm: "10px" }}
+                        bg={bgColor}
+                        rounded="1.5px"
+                        cursor={seat.status === "occupied" ? "default" : "pointer"}
+                        transition="0.1s"
+                        _hover={seat.status !== "occupied" ? { transform: "scale(1.3)" } : {}}
+                        onClick={() => handleSeatClick(seat)}
+                      />
                     );
                   })}
               </HStack>

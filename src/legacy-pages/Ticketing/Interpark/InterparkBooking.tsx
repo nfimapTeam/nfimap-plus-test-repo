@@ -166,8 +166,14 @@ const InterparkBooking = () => {
   // Centralized session seat states
   const [sections, setSections] = useState<SectionSeatData[]>([]);
   const [detailedSeats, setDetailedSeats] = useState<Record<string, SeatData[]>>({});
+
+  const detailedSeatsRef = useRef(detailedSeats);
+  useEffect(() => {
+    detailedSeatsRef.current = detailedSeats;
+  }, [detailedSeats]);
+
   const [showPuzzleOverlay, setShowPuzzleOverlay] = useState<boolean>(false);
-  const [pendingAction, setPendingAction] = useState<(() => void) | null>(null);
+  const [pendingAction, setPendingAction] = useState<(() => Promise<void> | void) | null>(null);
   const [activePuzzleType, setActivePuzzleType] = useState<"slider" | "nfia">("nfia");
 
   useEffect(() => {
@@ -562,12 +568,12 @@ const InterparkBooking = () => {
     }
   };
 
-  const handlePuzzleOverlaySuccess = () => {
-    setShowPuzzleOverlay(false);
+  const handlePuzzleOverlaySuccess = async () => {
     if (pendingAction) {
-      pendingAction();
+      await pendingAction();
       setPendingAction(null);
     }
+    setShowPuzzleOverlay(false);
   };
 
   const syncSelectedSectionSeats = useCallback((sectionId: string, targetRemaining: number) => {
@@ -648,11 +654,12 @@ const InterparkBooking = () => {
   };
 
   const handleSeatSelectSuccess = (seatInfo: string, seatId: string) => {
-    const action = () => {
+    const action = async () => {
+      const currentDetailedSeats = detailedSeatsRef.current;
       // Double check if seat became occupied in the background
       const sectionId = seatId.split("-")[0];
       const rowName = seatId.split("-")[1];
-      const seats = detailedSeats[sectionId] || [];
+      const seats = currentDetailedSeats[sectionId] || [];
       const seat = seats.find((s) => s.id === seatId);
 
       if (!seat || seat.status === "occupied" || seat.hijacked) {
@@ -707,6 +714,7 @@ const InterparkBooking = () => {
         const submitScore = async () => {
           let savedId = localStorage.getItem("nfiapark_ranking_id");
           let finalId: number | null = savedId ? Number(savedId) : null;
+          let dbSuccess = false;
 
           if (hasSupabaseConfig) {
             try {
@@ -738,6 +746,7 @@ const InterparkBooking = () => {
                 } else if (data) {
                   finalId = data.id;
                   localStorage.setItem("nfiapark_ranking_id", String(data.id));
+                  dbSuccess = true;
                 }
               } else if (finalScore > Number(existingRecord.score)) {
                 const { error: updateError } = await supabase
@@ -749,7 +758,11 @@ const InterparkBooking = () => {
 
                 if (updateError) {
                   console.error("Update error from Supabase:", updateError);
+                } else {
+                  dbSuccess = true;
                 }
+              } else {
+                dbSuccess = true; // No update needed but record is fine
               }
               if (finalId) {
                 setCurrentUserId(finalId);
@@ -757,7 +770,10 @@ const InterparkBooking = () => {
             } catch (err) {
               console.error("Failed to submit score to Supabase:", err);
             }
-          } else {
+          }
+
+          // Fallback to local storage if supabase write failed or isn't configured
+          if (!dbSuccess) {
             const localKey = "mock_rankings_nfiapark";
             try {
               const savedStr = localStorage.getItem(localKey);
@@ -789,7 +805,7 @@ const InterparkBooking = () => {
             }
           }
         };
-        submitScore();
+        await submitScore();
       }
 
       setPhase("success");

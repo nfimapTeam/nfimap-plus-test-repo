@@ -98,14 +98,23 @@ const TicketlinkBooking = () => {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [yiseonjwaCount, setYiseonjwaCount] = useState<number>(0);
   const [randomMember, setRandomMember] = useState<DistractionMember | null>(null);
-  
+
   const [currentUserName, setCurrentUserName] = useState<string>("");
   const [currentUserScore, setCurrentUserScore] = useState<number | undefined>(undefined);
   const [currentUserBaseScore, setCurrentUserBaseScore] = useState<number>(0);
   const [currentUserId, setCurrentUserId] = useState<number | undefined>(undefined);
 
-  // Seat layout grid state
   const [seats, setSeats] = useState<TicketlinkSeatData[]>([]);
+
+  const seatsRef = useRef(seats);
+  useEffect(() => {
+    seatsRef.current = seats;
+  }, [seats]);
+
+  const selectedSeatIdRef = useRef(selectedSeatId);
+  useEffect(() => {
+    selectedSeatIdRef.current = selectedSeatId;
+  }, [selectedSeatId]);
 
   // Queue state
   const [currentQueue, setCurrentQueue] = useState<number>(0);
@@ -114,7 +123,7 @@ const TicketlinkBooking = () => {
   // Distractions list (Crazy Mode)
   const [distractions, setDistractions] = useState<DistractionEvent[]>([]);
   const [showPuzzleOverlay, setShowPuzzleOverlay] = useState<boolean>(false);
-  const [pendingAction, setPendingAction] = useState<(() => void) | null>(null);
+  const [pendingAction, setPendingAction] = useState<(() => Promise<void> | void) | null>(null);
   const [activePuzzleType, setActivePuzzleType] = useState<"slider" | "nfia">("nfia");
 
   useEffect(() => {
@@ -610,7 +619,7 @@ const TicketlinkBooking = () => {
     if (phase === "seatSelect" && !showCaptchaModal) {
       const availableCount = seats.filter((s) => s.status === "available").length;
       const selectedSeat = seats.find((s) => s.id === selectedSeatId);
-      
+
       if (selectedSeatId && selectedSeat) {
         if (selectedSeat.status === "occupied" && availableCount === 0) {
           const endTime = performance.now();
@@ -789,12 +798,12 @@ const TicketlinkBooking = () => {
     });
   };
 
-  const handlePuzzleOverlaySuccess = () => {
-    setShowPuzzleOverlay(false);
+  const handlePuzzleOverlaySuccess = async () => {
     if (pendingAction) {
-      pendingAction();
+      await pendingAction();
       setPendingAction(null);
     }
+    setShowPuzzleOverlay(false);
   };
 
   // Seat Selection Completion
@@ -810,9 +819,24 @@ const TicketlinkBooking = () => {
       return;
     }
 
-    const action = () => {
+    const action = async () => {
+      const currentSelectedSeatId = selectedSeatIdRef.current;
+      const currentSeats = seatsRef.current;
+
+      if (!currentSelectedSeatId) {
+        toast({
+          title: "이미 선택된 좌석입니다.",
+          description: "예매 진행 도중 다른 예매자가 먼저 결제창에 진입했습니다.",
+          status: "error",
+          duration: 2500,
+          position: "top",
+        });
+        handleYiseonjwaTrigger();
+        return;
+      }
+
       // Double check if seat became occupied
-      const seat = seats.find((s) => s.id === selectedSeatId);
+      const seat = currentSeats.find((s) => s.id === currentSelectedSeatId);
       const isNboom = mode === "nboom";
       const isJaehyun = mode === "jaehyun";
 
@@ -827,7 +851,7 @@ const TicketlinkBooking = () => {
       if (!seat || seat.status === "occupied" || isHijacked) {
         // Change seat to occupied
         setSeats((prev) =>
-          prev.map((s) => (s.id === selectedSeatId ? { ...s, status: "occupied" } : s))
+          prev.map((s) => (s.id === currentSelectedSeatId ? { ...s, status: "occupied" } : s))
         );
         toast({
           title: "이미 선택된 좌석입니다.",
@@ -857,6 +881,7 @@ const TicketlinkBooking = () => {
         const submitScore = async () => {
           let savedId = localStorage.getItem("nfialink_ranking_id");
           let finalId: number | null = savedId ? Number(savedId) : null;
+          let dbSuccess = false;
 
           if (hasSupabaseConfig) {
             try {
@@ -888,6 +913,7 @@ const TicketlinkBooking = () => {
                 } else if (data) {
                   finalId = data.id;
                   localStorage.setItem("nfialink_ranking_id", String(data.id));
+                  dbSuccess = true;
                 }
               } else if (finalScore > Number(existingRecord.score)) {
                 const { error: updateError } = await supabase
@@ -899,7 +925,11 @@ const TicketlinkBooking = () => {
 
                 if (updateError) {
                   console.error("Update error from Supabase:", updateError);
+                } else {
+                  dbSuccess = true;
                 }
+              } else {
+                dbSuccess = true; // No update needed but record is fine
               }
               if (finalId) {
                 setCurrentUserId(finalId);
@@ -907,12 +937,15 @@ const TicketlinkBooking = () => {
             } catch (err) {
               console.error("Failed to submit score to Supabase:", err);
             }
-          } else {
+          }
+
+          // Fallback to local storage if supabase write failed or isn't configured
+          if (!dbSuccess) {
             const localKey = "mock_rankings_nfialink";
             try {
               const savedStr = localStorage.getItem(localKey);
               let savedList = savedStr ? JSON.parse(savedStr) : [];
-              
+
               if (!finalId) {
                 finalId = Math.floor(Math.random() * 9000) + 1000;
                 localStorage.setItem("nfialink_ranking_id", String(finalId));
@@ -939,7 +972,7 @@ const TicketlinkBooking = () => {
             }
           }
         };
-        submitScore();
+        await submitScore();
       }
 
       setPhase("success");

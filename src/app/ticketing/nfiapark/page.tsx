@@ -201,6 +201,8 @@ const InterparkHomeContent = () => {
         return;
       }
       localStorage.setItem("nickname", nickname.trim());
+      localStorage.removeItem("nfiapark_ranking_id");
+      setNickname("");
     }
 
     onClose();
@@ -616,7 +618,7 @@ const InterparkHomeContent = () => {
         <ModalOverlay bg="blackAlpha.850" backdropFilter="blur(4px)" />
         <ModalContent mx={4} rounded="2xl" bg="rgba(10, 20, 35, 0.98)" border="1.5px solid" borderColor="blue.500" color="white" shadow="0 10px 30px rgba(49, 130, 206, 0.3)">
           <ModalHeader textAlign="center" borderBottom="1px solid" borderColor="rgba(255,255,255,0.08)" fontSize="18px" fontWeight="black" letterSpacing="1px">
-            🗳️ 엔피아파크 랭킹 등록
+            🏆 엔피아파크 랭킹 등록
           </ModalHeader>
           <ModalBody py={6}>
             <VStack spacing={5} align="stretch">
