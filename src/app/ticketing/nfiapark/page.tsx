@@ -318,7 +318,7 @@ const InterparkHomeContent = () => {
   }, []);
 
   return (
-    <VStack spacing={0} align="stretch" h="full" bg="gray.50" position="relative" minH="calc(100svh - 68px)">
+    <VStack spacing={0} align="stretch" h="full" bg="gray.50" position="relative">
       {/* 상단 네비 및 시계 */}
       <Box bg="white" borderBottom="1px solid" borderColor="gray.200" py={3} px={4}>
         <HStack justify="space-between">

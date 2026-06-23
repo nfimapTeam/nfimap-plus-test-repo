@@ -5,6 +5,7 @@ import { Box, Container } from "@chakra-ui/react";
 import { usePathname } from "next/navigation";
 import Header from "./Header";
 import { bgColorState } from "../../Atom/bgColorState";
+import { bookingResultState } from "../../Atom/bookingResultState";
 import { useRecoilValue } from "recoil";
 
 interface LayoutProps {
@@ -13,25 +14,43 @@ interface LayoutProps {
 
 const Layout = ({ children }: LayoutProps) => {
   const bg = useRecoilValue(bgColorState);
+  const isBookingResultPage = useRecoilValue(bookingResultState);
   const pathname = usePathname();
-  const isBookingPage = pathname?.endsWith("/booking") ?? false;
+  const isBookingPage = pathname?.includes("/booking") ?? false;
 
   return (
     <Box 
-      height="100%"
+      height={isBookingResultPage ? "auto" : "100svh"}
+      minHeight="100svh"
+      maxHeight={isBookingResultPage ? "none" : "100svh"}
       display="flex" 
       justifyContent="center" 
       backgroundColor={bg}
+      overflow={isBookingResultPage ? "visible" : "hidden"}
     >
       <Container 
         maxW="480px"
-        height="100%"
+        height={isBookingResultPage ? "auto" : "100svh"}
+        minHeight={isBookingResultPage ? "100svh" : "unset"}
+        maxHeight={isBookingResultPage ? "none" : "100svh"}
         p={0}
         backgroundColor="white"
         boxShadow="lg"
+        display="flex"
+        flexDirection="column"
+        overflow={isBookingResultPage ? "visible" : "hidden"}
       >
         {!isBookingPage && <Header />}
-        <main style={{ minHeight: isBookingPage ? "100svh" : "calc(100svh - 68px)"}}>{children}</main>
+        <main style={{ 
+          height: isBookingResultPage ? "auto" : (isBookingPage ? "100svh" : "calc(100svh - 68px)"),
+          maxHeight: isBookingResultPage ? "none" : (isBookingPage ? "100svh" : "calc(100svh - 68px)"),
+          overflow: isBookingResultPage ? "visible" : "hidden",
+          display: "flex",
+          flexDirection: "column",
+          flex: 1
+        }}>
+          {children}
+        </main>
       </Container>
     </Box>
   );

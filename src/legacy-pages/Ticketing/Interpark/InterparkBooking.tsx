@@ -4,6 +4,8 @@ import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { Box, HStack, Text, Badge, VStack, Heading, Grid, Button, Image, useToast, IconButton, Modal, ModalOverlay, ModalContent, ModalBody, Divider } from "@chakra-ui/react";
 import { X, ArrowLeft, XCircle } from "lucide-react";
+import { useSetRecoilState } from "recoil";
+import { bookingResultState } from "../../../Atom/bookingResultState";
 import { DISTRACTION_MEMBERS, YOUTUBE_CHANNELS, DistractionMember, getYoutubeReplyMessage } from "../constants";
 
 import CaptchaScreen from "./components/CaptchaScreen";
@@ -139,6 +141,14 @@ const InterparkBooking = () => {
   const [phase, setPhase] = useState<BookingPhase>(() => {
     return failType === "timeout" ? "fail" : "queue";
   });
+
+  const setBookingResult = useSetRecoilState(bookingResultState);
+  useEffect(() => {
+    setBookingResult(phase === "success" || phase === "fail");
+    return () => {
+      setBookingResult(false);
+    };
+  }, [phase, setBookingResult]);
   const [selectedSection, setSelectedSection] = useState<string | null>(null);
   const [selectedSeat, setSelectedSeat] = useState<string | null>(null);
 

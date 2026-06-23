@@ -25,6 +25,8 @@ import {
   Divider,
 } from "@chakra-ui/react";
 import { X, ArrowLeft, RefreshCw, ShieldCheck, CheckCircle2, XCircle } from "lucide-react";
+import { useSetRecoilState } from "recoil";
+import { bookingResultState } from "../../../Atom/bookingResultState";
 import { DISTRACTION_MEMBERS, YOUTUBE_CHANNELS, DistractionMember, getYoutubeReplyMessage } from "../constants";
 
 import PuzzleScreen from "../Interpark/components/PuzzleScreen";
@@ -71,6 +73,15 @@ const TicketlinkBooking = () => {
   const [phase, setPhase] = useState<BookingPhase>(() => {
     return failType === "timeout" ? "fail" : "queue";
   });
+
+  const setBookingResult = useSetRecoilState(bookingResultState);
+  useEffect(() => {
+    setBookingResult(phase === "success" || phase === "fail");
+    return () => {
+      setBookingResult(false);
+    };
+  }, [phase, setBookingResult]);
+
   const [selectedDate, setSelectedDate] = useState<string>("");
   const [selectedTime, setSelectedTime] = useState<string>("");
   const [showCaptchaModal, setShowCaptchaModal] = useState<boolean>(false);
