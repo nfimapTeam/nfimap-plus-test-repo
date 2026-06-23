@@ -242,7 +242,7 @@ export const Leaderboard: React.FC<LeaderboardProps> = ({
       <Text
         fontSize="11px"
         fontWeight="bold"
-        color="purple.300"
+        color="purple.600"
         textAlign="center"
         fontFamily="monospace"
       >
@@ -255,40 +255,38 @@ export const Leaderboard: React.FC<LeaderboardProps> = ({
     <VStack
       spacing={4}
       w="full"
-      bg="rgba(10, 8, 20, 0.95)"
+      bg="white"
       border="1px solid"
-      borderColor="rgba(168, 85, 247, 0.25)"
+      borderColor="purple.100"
       p={5}
       rounded="2xl"
-      shadow="0 15px 40px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.05)"
-      color="white"
+      shadow="lg"
+      color="gray.800"
       maxW="400px"
       mx="auto"
       position="relative"
-      backdropFilter="blur(12px)"
     >
       <VStack spacing={2} w="full" align="center">
         <Heading
-          fontSize="22px"
+          fontSize="20px"
           fontWeight="900"
-          bgGradient="linear(to-r, #FFFFFF, #E2E8F0, #A78BFA)"
-          bgClip="text"
+          color="purple.800"
           textAlign="center"
-          letterSpacing="2px"
+          letterSpacing="1px"
         >
           대환장모드 랭킹
         </Heading>
         <Box
           px={3}
           py={1}
-          bg="rgba(255, 255, 255, 0.04)"
-          border="1px solid rgba(255, 255, 255, 0.08)"
+          bg="purple.50"
+          border="1px solid"
+          borderColor="purple.100"
           borderRadius="full"
-          boxShadow="inset 0 1px 1px rgba(255,255,255,0.1)"
         >
           <Text
             fontSize="9px"
-            color="purple.200"
+            color="purple.600"
             fontWeight="black"
             letterSpacing="1.5px"
             textAlign="center"
@@ -300,14 +298,14 @@ export const Leaderboard: React.FC<LeaderboardProps> = ({
 
       {loading ? (
         <VStack py={20} justify="center">
-          <Spinner color="purple.400" size="xl" thickness="4px" />
-          <Text fontSize="12px" color="purple.300" mt={3} fontWeight="bold" letterSpacing="1px">
+          <Spinner color="purple.500" size="xl" thickness="4px" />
+          <Text fontSize="12px" color="purple.600" mt={3} fontWeight="bold" letterSpacing="1px">
             서버 동기화 중...
           </Text>
         </VStack>
       ) : error ? (
         <VStack py={20} justify="center" textAlign="center">
-          <Text fontSize="14px" color="red.400" fontWeight="bold">
+          <Text fontSize="14px" color="red.500" fontWeight="bold">
             {error}
           </Text>
         </VStack>
@@ -317,17 +315,17 @@ export const Leaderboard: React.FC<LeaderboardProps> = ({
             w="full"
             minH="0"
             border="1px solid"
-            borderColor="rgba(255, 255, 255, 0.06)"
+            borderColor="gray.200"
             rounded="xl"
-            bg="rgba(255, 255, 255, 0.01)"
+            bg="gray.50"
             overflow="hidden"
           >
             <Table size="sm" variant="unstyled">
-              <Thead bg="rgba(255, 255, 255, 0.03)" borderBottom="1px solid" borderColor="rgba(255, 255, 255, 0.08)">
+              <Thead bg="purple.50" borderBottom="1px solid" borderColor="purple.100">
                 <Tr>
-                  <Th py={3} color="purple.200" fontSize="10px" fontWeight="black" textAlign="center" w="65px" letterSpacing="1px">RANK</Th>
-                  <Th py={3} color="purple.200" fontSize="10px" fontWeight="black" letterSpacing="1px">PLAYER</Th>
-                  <Th py={3} color="purple.200" fontSize="10px" fontWeight="black" textAlign="right" pr={5} w="90px" letterSpacing="1px">SCORE</Th>
+                  <Th py={3} color="purple.700" fontSize="10px" fontWeight="black" textAlign="center" w="65px" letterSpacing="1px">RANK</Th>
+                  <Th py={3} color="purple.700" fontSize="10px" fontWeight="black" letterSpacing="1px">PLAYER</Th>
+                  <Th py={3} color="purple.700" fontSize="10px" fontWeight="black" textAlign="right" pr={5} w="90px" letterSpacing="1px">SCORE</Th>
                 </Tr>
               </Thead>
               <Tbody>
@@ -340,10 +338,10 @@ export const Leaderboard: React.FC<LeaderboardProps> = ({
                   return (
                     <Tr
                       key={idx}
-                      bg={isCurrentUser ? "rgba(168, 85, 247, 0.12)" : "transparent"}
+                      bg={isCurrentUser ? "purple.100" : "transparent"}
                       borderBottom="1px solid"
-                      borderColor="rgba(255, 255, 255, 0.03)"
-                      _hover={{ bg: isCurrentUser ? "rgba(168, 85, 247, 0.18)" : "rgba(255, 255, 255, 0.03)", transform: "translateX(2px)" }}
+                      borderColor="gray.200"
+                      _hover={{ bg: isCurrentUser ? "purple.200" : "gray.100", transform: "translateX(2px)" }}
                       transition="all 0.2s cubic-bezier(0.16, 1, 0.3, 1)"
                     >
                       <Td py={2.5} textAlign="center" verticalAlign="middle" w="65px">
@@ -354,7 +352,7 @@ export const Leaderboard: React.FC<LeaderboardProps> = ({
                           <Text
                             fontSize="13px"
                             fontWeight={isCurrentUser ? "950" : "bold"}
-                            color={isCurrentUser ? "#F472B6" : "gray.200"}
+                            color={isCurrentUser ? "purple.800" : "gray.750"}
                             noOfLines={1}
                             flexShrink={1}
                             minW={0}
@@ -367,7 +365,7 @@ export const Leaderboard: React.FC<LeaderboardProps> = ({
                               as="span"
                               flexShrink={0}
                               fontSize="10px"
-                              color={isCurrentUser ? "pink.300" : "purple.400"}
+                              color={isCurrentUser ? "purple.600" : "gray.400"}
                               fontWeight="bold"
                               fontFamily="monospace"
                               whiteSpace="nowrap"
@@ -378,13 +376,12 @@ export const Leaderboard: React.FC<LeaderboardProps> = ({
                           {isCurrentUser && (
                             <Badge
                               flexShrink={0}
-                              bg="#EC4899"
+                              bg="purple.500"
                               color="white"
                               fontSize="9px"
                               px={1.5}
                               py={0.1}
                               rounded="md"
-                              shadow="0 0 5px #EC4899"
                               ml={1.5}
                             >
                               YOU
@@ -397,7 +394,7 @@ export const Leaderboard: React.FC<LeaderboardProps> = ({
                           fontSize="14px"
                           fontWeight="black"
                           fontFamily="monospace"
-                          color={isCurrentUser ? "#FFEA79" : "purple.100"}
+                          color={isCurrentUser ? "purple.900" : "purple.700"}
                         >
                           {entry.score.toLocaleString()}
                         </Text>
@@ -424,14 +421,14 @@ export const Leaderboard: React.FC<LeaderboardProps> = ({
               variant="outline"
               isDisabled={currentPage === 1}
               onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
-              _hover={{ bg: "rgba(255, 255, 255, 0.05)" }}
-              _active={{ bg: "rgba(255, 255, 255, 0.1)" }}
+              _hover={{ bg: "gray.100" }}
+              _active={{ bg: "gray.200" }}
               px={2}
               minW="28px"
               h="26px"
               fontSize="11px"
-              borderColor="rgba(255, 255, 255, 0.08)"
-              color="purple.300"
+              borderColor="gray.200"
+              color="purple.600"
               fontWeight="black"
             >
               &lt;
@@ -451,11 +448,11 @@ export const Leaderboard: React.FC<LeaderboardProps> = ({
                   h="26px"
                   w="26px"
                   minW="auto"
-                  shadow={isActive ? "0 2px 8px rgba(139, 92, 246, 0.4)" : "none"}
-                  _hover={!isActive ? { bg: "rgba(255, 255, 255, 0.05)" } : {}}
-                  borderColor={isActive ? "transparent" : "rgba(255, 255, 255, 0.08)"}
-                  color={isActive ? "white" : "purple.300"}
-                  bg={isActive ? "linear-gradient(to-r, #EC4899, #8B5CF6)" : "transparent"}
+                  shadow={isActive ? "sm" : "none"}
+                  _hover={!isActive ? { bg: "gray.100" } : {}}
+                  borderColor={isActive ? "transparent" : "gray.200"}
+                  color={isActive ? "white" : "purple.600"}
+                  bg={isActive ? "purple.600" : "transparent"}
                 >
                   {pageNum}
                 </Button>
@@ -467,14 +464,14 @@ export const Leaderboard: React.FC<LeaderboardProps> = ({
               variant="outline"
               isDisabled={currentPage === totalPages}
               onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}
-              _hover={{ bg: "rgba(255, 255, 255, 0.05)" }}
-              _active={{ bg: "rgba(255, 255, 255, 0.1)" }}
+              _hover={{ bg: "gray.100" }}
+              _active={{ bg: "gray.200" }}
               px={2}
               minW="28px"
               h="26px"
               fontSize="11px"
-              borderColor="rgba(255, 255, 255, 0.08)"
-              color="purple.300"
+              borderColor="gray.200"
+              color="purple.600"
               fontWeight="black"
             >
               &gt;

@@ -616,14 +616,14 @@ const InterparkHomeContent = () => {
 
       {/* 닉네임 입력 모달 (대환장모드 진입 시에만 노출) */}
       <Modal isOpen={isNicknameModalOpen} onClose={() => setIsNicknameModalOpen(false)} isCentered closeOnOverlayClick={false}>
-        <ModalOverlay bg="blackAlpha.850" backdropFilter="blur(4px)" />
-        <ModalContent mx={4} rounded="2xl" bg="rgba(10, 20, 35, 0.98)" border="1.5px solid" borderColor="blue.500" color="white" shadow="0 10px 30px rgba(49, 130, 206, 0.3)">
-          <ModalHeader textAlign="center" borderBottom="1px solid" borderColor="rgba(255,255,255,0.08)" fontSize="18px" fontWeight="black" letterSpacing="1px">
+        <ModalOverlay bg="blackAlpha.700" backdropFilter="blur(3px)" />
+        <ModalContent mx={4} rounded="2xl" bg="white" shadow="lg" color="gray.800">
+          <ModalHeader textAlign="center" borderBottom="1px solid" borderColor="gray.100" fontSize="18px" fontWeight="bold">
             🏆 엔피아파크 랭킹 등록
           </ModalHeader>
           <ModalBody py={6}>
             <VStack spacing={5} align="stretch">
-              <Text fontSize="13px" color="blue.200" fontWeight="bold" textAlign="center" lineHeight="1.6">
+              <Text fontSize="13px" color="purple.600" fontWeight="bold" textAlign="center" lineHeight="1.6">
                 대환장모드는 랭킹 등록이 가능합니다.<br />
                 랭킹에 등록될 닉네임을 입력해 주세요!
               </Text>
@@ -637,28 +637,28 @@ const InterparkHomeContent = () => {
                 }}
                 textAlign="center"
                 fontSize="16px"
-                fontWeight="black"
-                bg="rgba(255, 255, 255, 0.04)"
-                borderColor="blue.400"
-                color="white"
+                fontWeight="bold"
+                bg="gray.50"
+                borderColor="purple.300"
+                color="gray.800"
                 h="50px"
-                _placeholder={{ color: "blue.300" }}
-                _focus={{ borderColor: "blue.300", shadow: "0 0 10px rgba(66,153,225,0.5)" }}
+                _placeholder={{ color: "gray.400" }}
+                _focus={{ borderColor: "purple.500", bg: "white", shadow: "0 0 8px rgba(128,90,213,0.3)" }}
                 autoFocus
                 autoComplete="off"
               />
             </VStack>
           </ModalBody>
-          <ModalFooter borderTop="1px solid" borderColor="rgba(255,255,255,0.08)">
+          <ModalFooter borderTop="1px solid" borderColor="gray.100">
             <HStack spacing={3} w="full">
               <Button
                 variant="outline"
                 w="35%"
                 size="lg"
                 rounded="xl"
-                borderColor="rgba(255,255,255,0.15)"
-                color="gray.300"
-                _hover={{ bg: "rgba(255,255,255,0.05)" }}
+                borderColor="gray.300"
+                color="gray.700"
+                _hover={{ bg: "gray.50" }}
                 onClick={() => {
                   setIsNicknameModalOpen(false);
                   onOpen(); // Go back to configuration modal
@@ -668,16 +668,12 @@ const InterparkHomeContent = () => {
                 이전으로
               </Button>
               <Button
-                bgGradient="linear(to-r, #3182CE, #00B5D8)"
-                color="white"
-                _hover={{ bgGradient: "linear(to-r, #2B6CB0, #00A3C4)", transform: "scale(1.02)" }}
-                _active={{ transform: "scale(0.98)" }}
+                colorScheme="purple"
                 w="65%"
                 size="lg"
                 rounded="xl"
                 onClick={startSimulation}
                 fontWeight="bold"
-                shadow="0 4px 15px rgba(49, 130, 206, 0.4)"
               >
                 연습 시작하기
               </Button>

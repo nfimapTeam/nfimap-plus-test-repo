@@ -111,7 +111,7 @@ const Result = ({ name, resultCode, testResult, handleRestartTest }: ResultProps
         ctx?.drawImage(img, 0, 0);
 
         if (ctx) {
-          ctx.font = 'bold 32px nanumfont';
+          ctx.font = 'bold 32px -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Malgun Gothic", "Noto Sans KR", sans-serif';
           ctx.fillStyle = "black";
           ctx.textAlign = "center";
           ctx.fillText(

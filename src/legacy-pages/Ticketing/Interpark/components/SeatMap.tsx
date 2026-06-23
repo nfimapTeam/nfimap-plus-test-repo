@@ -89,7 +89,7 @@ const SeatMap = ({
 
     // Simulate instant submit hijack (race condition where another user hits reserve first!)
     onIncrementAttempts();
-    const hijackChance = isJaehyun ? (totalAttempts < 7 ? 0.97 : 0.89) : isNboom ? 0.20 : 0.05;
+    const hijackChance = isJaehyun ? (totalAttempts < 7 ? 0.01 : 0.89) : isNboom ? 0.20 : 0.05;
     let finalSeats = seats;
     if (Math.random() < hijackChance) {
       finalSeats = seats.map((s) =>

@@ -2186,13 +2186,7 @@ const TicketlinkBooking = () => {
                       SCORE: {currentUserScore?.toLocaleString() || 0}
                     </Heading>
                     <Divider my={3} borderColor="purple.200" />
-                    <Grid templateColumns="repeat(3, 1fr)" gap={2} fontSize="12px" fontWeight="bold">
-                      <VStack spacing={0.5}>
-                        <Text color="gray.500">기본 좌석 점수</Text>
-                        <Text fontSize="14px" color="purple.700">
-                          {currentUserBaseScore}점
-                        </Text>
-                      </VStack>
+                    <Grid templateColumns="repeat(2, 1fr)" gap={2} fontSize="12px" fontWeight="bold">
                       <VStack spacing={0.5}>
                         <Text color="gray.500">반응 시간</Text>
                         <Text fontSize="14px" color="purple.700">{elapsedTime.toFixed(2)}초</Text>
