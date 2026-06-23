@@ -33,18 +33,14 @@ const sectionConfigs: Omit<SectionSeatData, "remainingSeats">[] = [
   { id: "F2", name: "Floor F2", type: "FLOOR", color: "purple.500", initialSeats: 600, depleteSpeed: 28 },
   { id: "F3", name: "Floor F3", type: "FLOOR", color: "purple.500", initialSeats: 600, depleteSpeed: 24 },
   { id: "F4", name: "Floor F4", type: "FLOOR", color: "purple.500", initialSeats: 600, depleteSpeed: 24 },
-  // 2F (Green & Blue)
-  { id: "202", name: "202구역", type: "2F", color: "teal.500", initialSeats: 400, depleteSpeed: 15 },
-  { id: "203", name: "203구역", type: "2F", color: "green.500", initialSeats: 400, depleteSpeed: 16 },
-  { id: "204", name: "204구역", type: "2F", color: "green.500", initialSeats: 400, depleteSpeed: 16 },
-  { id: "205", name: "205구역", type: "2F", color: "teal.500", initialSeats: 400, depleteSpeed: 15 },
-  { id: "212", name: "212구역", type: "2F", color: "teal.500", initialSeats: 400, depleteSpeed: 15 },
-  { id: "213", name: "213구역", type: "2F", color: "teal.500", initialSeats: 400, depleteSpeed: 15 },
-  // 3F (Blue)
-  { id: "308", name: "308구역", type: "3F", color: "blue.500", initialSeats: 400, depleteSpeed: 12 },
-  { id: "309", name: "309구역", type: "3F", color: "blue.500", initialSeats: 400, depleteSpeed: 12 },
-  { id: "313", name: "313구역", type: "3F", color: "blue.500", initialSeats: 400, depleteSpeed: 10 },
-  { id: "314", name: "314구역", type: "3F", color: "blue.500", initialSeats: 400, depleteSpeed: 10 },
+  // 1F (Green & Teal)
+  { id: "101", name: "101구역", type: "1F", color: "green.500", initialSeats: 400, depleteSpeed: 16 },
+  { id: "102", name: "102구역", type: "1F", color: "teal.500", initialSeats: 400, depleteSpeed: 15 },
+  { id: "103", name: "103구역", type: "1F", color: "green.500", initialSeats: 400, depleteSpeed: 16 },
+  // 2F (Blue)
+  { id: "201", name: "201구역", type: "2F", color: "blue.500", initialSeats: 400, depleteSpeed: 12 },
+  { id: "202", name: "202구역", type: "2F", color: "blue.500", initialSeats: 400, depleteSpeed: 10 },
+  { id: "203", name: "203구역", type: "2F", color: "blue.500", initialSeats: 400, depleteSpeed: 12 },
 ];
 
 const getDepletedRatio = (sectionId: string, targetDepletedRatio: number): number => {
@@ -54,9 +50,9 @@ const getDepletedRatio = (sectionId: string, targetDepletedRatio: number): numbe
     ratio = t <= 0.8 ? t * 1.25 : 1.0;
   } else if (sectionId === "F3" || sectionId === "F4") {
     ratio = t <= 2 / 3 ? t * 0.25 : 0.167 + 2.5 * (t - 2 / 3);
-  } else if (sectionId.startsWith("2")) {
+  } else if (sectionId.startsWith("1")) {
     ratio = t <= 2 / 3 ? t * 0.225 : 0.15 + 2.55 * (t - 2 / 3);
-  } else {
+  } else if (sectionId.startsWith("2")) {
     ratio = t <= 2 / 3 ? t * 0.13125 : 0.0875 + 2.7375 * (t - 2 / 3);
   }
   return Math.min(1.0, Math.max(0.0, ratio));

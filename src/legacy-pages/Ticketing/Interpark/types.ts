@@ -1,7 +1,7 @@
 export interface SectionSeatData {
   id: string;
   name: string;
-  type: "FLOOR" | "2F" | "3F";
+  type: "FLOOR" | "1F" | "2F";
   color: string;
   initialSeats: number;
   remainingSeats: number;

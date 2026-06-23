@@ -120,88 +120,67 @@ const StadiumMap = ({ mode, sections, onSelectSection }: StadiumMapProps) => {
 
 
 
-            {/* 2F & 3F 구역 (사이드 및 백) */}
-            <Grid templateColumns="repeat(3, 1fr)" gap={3} w="full">
-              {/* 왼쪽 2F/3F 대표구역 */}
-              <VStack spacing={2}>
-                {["213", "313"].map((id) => {
-                  const sec = sections.find((s) => s.id === id);
-                  return (
-                    <Box
-                      key={id}
-                      w="full"
-                      bg={sec?.type === "2F" ? "teal.900" : "blue.900"}
-                      border="1px solid"
-                      borderColor={sec?.type === "2F" ? "teal.400" : "blue.400"}
-                      py={2}
-                      rounded="lg"
-                      textAlign="center"
-                      cursor={sec && sec.remainingSeats > 0 ? "pointer" : "not-allowed"}
-                      opacity={sec && sec.remainingSeats > 0 ? 1 : 0.3}
-                      onClick={() => sec && sec.remainingSeats > 0 && onSelectSection(id)}
-                      _hover={sec && sec.remainingSeats > 0 ? { bg: sec?.type === "2F" ? "teal.800" : "blue.800" } : {}}
-                    >
-                      <Text fontSize="11px" fontWeight="bold">{sec?.name}</Text>
-                      <Text fontSize="10px" color="gray.300">{sec?.remainingSeats}석</Text>
-                    </Box>
-                  );
-                })}
-              </VStack>
+            {/* 1F 구역 (101, 102, 103) */}
+            <HStack spacing={4} w="full" justify="center">
+              {["101", "102", "103"].map((id) => {
+                const sec = sections.find((s) => s.id === id);
+                return (
+                  <Box
+                    key={id}
+                    flex={1}
+                    bg="teal.900"
+                    border="2px solid"
+                    borderColor="teal.400"
+                    h="60px"
+                    display="flex"
+                    flexDirection="column"
+                    justifyContent="center"
+                    alignItems="center"
+                    rounded="xl"
+                    cursor={sec && sec.remainingSeats > 0 ? "pointer" : "not-allowed"}
+                    opacity={sec && sec.remainingSeats > 0 ? 1 : 0.3}
+                    transition="0.15s"
+                    _hover={sec && sec.remainingSeats > 0 ? { transform: "scale(1.05)", bg: "teal.800" } : {}}
+                    _active={sec && sec.remainingSeats > 0 ? { transform: "scale(0.98)" } : {}}
+                    onClick={() => sec && sec.remainingSeats > 0 && onSelectSection(id)}
+                  >
+                    <Text fontSize="12px" fontWeight="bold">{sec?.name}</Text>
+                    <Text fontSize="11px" color="teal.200">{sec?.remainingSeats}석</Text>
+                  </Box>
+                );
+              })}
+            </HStack>
 
-              {/* 중앙 뒤편 3F 대표구역 */}
-              <VStack spacing={2} justify="center">
-                {["309", "308"].map((id) => {
-                  const sec = sections.find((s) => s.id === id);
-                  return (
-                    <Box
-                      key={id}
-                      w="full"
-                      bg="blue.900"
-                      border="1px solid"
-                      borderColor="blue.400"
-                      py={2}
-                      rounded="lg"
-                      textAlign="center"
-                      cursor={sec && sec.remainingSeats > 0 ? "pointer" : "not-allowed"}
-                      opacity={sec && sec.remainingSeats > 0 ? 1 : 0.3}
-                      onClick={() => sec && sec.remainingSeats > 0 && onSelectSection(id)}
-                      _hover={sec && sec.remainingSeats > 0 ? { bg: "blue.800" } : {}}
-                    >
-                      <Text fontSize="11px" fontWeight="bold">{sec?.name}</Text>
-                      <Text fontSize="10px" color="gray.300">{sec?.remainingSeats}석</Text>
-                    </Box>
-                  );
-                })}
-              </VStack>
-
-              {/* 오른쪽 2F/3F 대표구역 */}
-              <VStack spacing={2}>
-                {["203", "308"].map((id, index) => {
-                  // If id is 308 (which is in the middle), let's use 314 on right side instead for visual symmetry
-                  const resolvedId = index === 0 ? "203" : "314";
-                  const sec = sections.find((s) => s.id === resolvedId);
-                  return (
-                    <Box
-                      key={resolvedId}
-                      w="full"
-                      bg={sec?.type === "2F" ? "teal.900" : "blue.900"}
-                      border="1px solid"
-                      borderColor={sec?.type === "2F" ? "teal.400" : "blue.400"}
-                      py={2}
-                      rounded="lg"
-                      textAlign="center"
-                      cursor={sec && sec.remainingSeats > 0 ? "pointer" : "not-allowed"}
-                      opacity={sec && sec.remainingSeats > 0 ? 1 : 0.3}
-                      onClick={() => sec && sec.remainingSeats > 0 && onSelectSection(resolvedId)}
-                      _hover={sec && sec.remainingSeats > 0 ? { bg: sec?.type === "2F" ? "teal.800" : "blue.800" } : {}}
-                    >
-                      <Text fontSize="11px" fontWeight="bold">{sec?.name}</Text>
-                      <Text fontSize="10px" color="gray.300">{sec?.remainingSeats}석</Text>
-                    </Box>
-                  );
-                })}
-              </VStack>
-            </Grid>
+            {/* 2F 구역 (201, 202, 203) */}
+            <HStack spacing={4} w="full" justify="center">
+              {["201", "202", "203"].map((id) => {
+                const sec = sections.find((s) => s.id === id);
+                return (
+                  <Box
+                    key={id}
+                    flex={1}
+                    bg="blue.900"
+                    border="2px solid"
+                    borderColor="blue.400"
+                    h="60px"
+                    display="flex"
+                    flexDirection="column"
+                    justifyContent="center"
+                    alignItems="center"
+                    rounded="xl"
+                    cursor={sec && sec.remainingSeats > 0 ? "pointer" : "not-allowed"}
+                    opacity={sec && sec.remainingSeats > 0 ? 1 : 0.3}
+                    transition="0.15s"
+                    _hover={sec && sec.remainingSeats > 0 ? { transform: "scale(1.05)", bg: "blue.800" } : {}}
+                    _active={sec && sec.remainingSeats > 0 ? { transform: "scale(0.98)" } : {}}
+                    onClick={() => sec && sec.remainingSeats > 0 && onSelectSection(id)}
+                  >
+                    <Text fontSize="12px" fontWeight="bold">{sec?.name}</Text>
+                    <Text fontSize="11px" color="blue.200">{sec?.remainingSeats}석</Text>
+                  </Box>
+                );
+              })}
+            </HStack>
           </VStack>
         </VStack>
       </Box>
