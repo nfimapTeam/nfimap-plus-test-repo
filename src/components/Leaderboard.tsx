@@ -255,15 +255,14 @@ export const Leaderboard: React.FC<LeaderboardProps> = ({
     >
       <VStack spacing={2} w="full" align="center">
         <Heading
-          fontSize="20px"
+          fontSize="22px"
           fontWeight="900"
           bgGradient="linear(to-r, #FFFFFF, #E2E8F0, #A78BFA)"
           bgClip="text"
           textAlign="center"
-          letterSpacing="4px"
-          textTransform="uppercase"
+          letterSpacing="2px"
         >
-          HALL OF FAME
+          대환장모드 랭킹
         </Heading>
         <Box
           px={3}
@@ -277,11 +276,10 @@ export const Leaderboard: React.FC<LeaderboardProps> = ({
             fontSize="9px"
             color="purple.200"
             fontWeight="black"
-            letterSpacing="2px"
-            textTransform="uppercase"
+            letterSpacing="1.5px"
             textAlign="center"
           >
-            {ticketType === "nfiapark" ? "NFIAPARK" : "NFIALINK"} CRAZY MODE TOP 50
+            {ticketType === "nfiapark" ? "엔피아파크" : "엔피아링크"} CRAZY MODE TOP 50
           </Text>
         </Box>
       </VStack>
