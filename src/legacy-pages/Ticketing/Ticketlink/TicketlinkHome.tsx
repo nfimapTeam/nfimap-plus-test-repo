@@ -765,15 +765,15 @@ const TicketlinkHome = () => {
 
       {/* 닉네임 입력 모달 (대환장모드 진입 시에만 노출) */}
       <Modal isOpen={isNicknameModalOpen} onClose={() => setIsNicknameModalOpen(false)} isCentered closeOnOverlayClick={false}>
-        <ModalOverlay bg="blackAlpha.800" backdropFilter="blur(3px)" />
-        <ModalContent mx={4} rounded="2xl" bg="rgba(20, 15, 35, 0.98)" border="1px solid" borderColor="purple.500" color="white" shadow="0 10px 30px rgba(168, 85, 247, 0.4)">
+        <ModalOverlay bg="blackAlpha.850" backdropFilter="blur(4px)" />
+        <ModalContent mx={4} rounded="2xl" bg="rgba(25, 12, 12, 0.98)" border="1.5px solid" borderColor="red.500" color="white" shadow="0 10px 30px rgba(229, 62, 62, 0.3)">
           <ModalHeader textAlign="center" borderBottom="1px solid" borderColor="rgba(255,255,255,0.08)" fontSize="18px" fontWeight="black" letterSpacing="1px">
-            👾 대환장 모드 랭킹 등록
+            🗳️ 엔피아링크 랭킹 등록
           </ModalHeader>
           <ModalBody py={6}>
             <VStack spacing={5} align="stretch">
-              <Text fontSize="13px" color="purple.200" fontWeight="bold" textAlign="center" lineHeight="1.6">
-                대환장모드는 명예의 전당 등록이 가능합니다.<br />
+              <Text fontSize="13px" color="red.200" fontWeight="bold" textAlign="center" lineHeight="1.6">
+                대환장모드는 랭킹 등록이 가능합니다.<br />
                 랭킹에 등록될 닉네임을 입력해 주세요!
               </Text>
               <Input
@@ -787,12 +787,12 @@ const TicketlinkHome = () => {
                 textAlign="center"
                 fontSize="16px"
                 fontWeight="black"
-                bg="rgba(255, 255, 255, 0.05)"
-                borderColor="purple.400"
+                bg="rgba(255, 255, 255, 0.04)"
+                borderColor="red.400"
                 color="white"
                 h="50px"
-                _placeholder={{ color: "purple.300" }}
-                _focus={{ borderColor: "purple.300", shadow: "0 0 10px rgba(168,85,247,0.5)" }}
+                _placeholder={{ color: "red.300" }}
+                _focus={{ borderColor: "red.300", shadow: "0 0 10px rgba(229,62,62,0.5)" }}
                 autoFocus
               />
             </VStack>
@@ -816,16 +816,16 @@ const TicketlinkHome = () => {
                 이전으로
               </Button>
               <Button
-                bgGradient="linear(to-r, #EC4899, #8B5CF6)"
+                bgGradient="linear(to-r, #E53E3E, #DD6B20)"
                 color="white"
-                _hover={{ bgGradient: "linear(to-r, #D53F8C, #764BA2)", transform: "scale(1.02)" }}
+                _hover={{ bgGradient: "linear(to-r, #C53030, #C05621)", transform: "scale(1.02)" }}
                 _active={{ transform: "scale(0.98)" }}
                 w="65%"
                 size="lg"
                 rounded="xl"
                 onClick={startSimulation}
                 fontWeight="bold"
-                shadow="0 4px 15px rgba(236, 72, 153, 0.4)"
+                shadow="0 4px 15px rgba(229, 62, 62, 0.4)"
               >
                 연습 시작하기
               </Button>
