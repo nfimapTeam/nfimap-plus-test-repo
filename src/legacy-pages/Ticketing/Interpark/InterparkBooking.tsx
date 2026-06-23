@@ -704,7 +704,12 @@ const InterparkBooking = () => {
       setElapsedTime(duration);
 
       if (mode === "jaehyun") {
-        const nicknameVal = localStorage.getItem("nickname") || "UNK";
+        let nicknameVal = sessionStorage.getItem("clean_nickname") || localStorage.getItem("nickname") || "UNK";
+        // Defensive: strip trailing digits that match any stored ranking ID
+        const storedId = localStorage.getItem("nfiapark_ranking_id");
+        if (storedId && nicknameVal.endsWith(storedId)) {
+          nicknameVal = nicknameVal.slice(0, -storedId.length) || "UNK";
+        }
         setCurrentUserName(nicknameVal);
         const baseScore = getInterparkSeatScore(sectionId, rowName);
         setCurrentUserBaseScore(baseScore);

@@ -68,7 +68,7 @@ export const Leaderboard: React.FC<LeaderboardProps> = ({
             .select("id, name, score, created_at")
             .eq("ticket_type", ticketType)
             .order("score", { ascending: false })
-            .limit(100);
+            .limit(50);
 
           if (error) throw error;
           
@@ -139,6 +139,7 @@ export const Leaderboard: React.FC<LeaderboardProps> = ({
           }
 
           savedList.sort((a, b) => b.score - a.score);
+          savedList = savedList.slice(0, 50); // Cap at 50 entries (5 pages)
           localStorage.setItem(localKey, JSON.stringify(savedList));
           setRankings(savedList);
         }
@@ -298,14 +299,14 @@ export const Leaderboard: React.FC<LeaderboardProps> = ({
       </VStack>
 
       {loading ? (
-        <VStack py={20} h="380px" justify="center">
+        <VStack py={20} justify="center">
           <Spinner color="purple.400" size="xl" thickness="4px" />
           <Text fontSize="12px" color="purple.300" mt={3} fontWeight="bold" letterSpacing="1px">
             서버 동기화 중...
           </Text>
         </VStack>
       ) : error ? (
-        <VStack py={20} h="380px" justify="center" textAlign="center">
+        <VStack py={20} justify="center" textAlign="center">
           <Text fontSize="14px" color="red.400" fontWeight="bold">
             {error}
           </Text>
@@ -314,7 +315,7 @@ export const Leaderboard: React.FC<LeaderboardProps> = ({
         <VStack w="full" spacing={4}>
           <Box
             w="full"
-            h="360px"
+            minH="0"
             border="1px solid"
             borderColor="rgba(255, 255, 255, 0.06)"
             rounded="xl"

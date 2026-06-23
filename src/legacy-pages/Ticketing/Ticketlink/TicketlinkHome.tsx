@@ -213,6 +213,7 @@ const TicketlinkHome = () => {
         return;
       }
       localStorage.setItem("nickname", nickname.trim());
+      sessionStorage.setItem("clean_nickname", nickname.trim());
       localStorage.removeItem("nfialink_ranking_id");
       setNickname("");
     }
@@ -796,6 +797,7 @@ const TicketlinkHome = () => {
                 _placeholder={{ color: "red.300" }}
                 _focus={{ borderColor: "red.300", shadow: "0 0 10px rgba(229,62,62,0.5)" }}
                 autoFocus
+                autoComplete="off"
               />
             </VStack>
           </ModalBody>

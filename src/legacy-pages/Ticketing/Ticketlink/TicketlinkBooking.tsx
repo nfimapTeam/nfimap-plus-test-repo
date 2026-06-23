@@ -842,7 +842,7 @@ const TicketlinkBooking = () => {
 
       // Bot hijack seat (이선좌) check on submission
       setTotalAttempts((prev) => prev + 1);
-      const hijackChance = isJaehyun ? (totalAttempts < 5 ? 0.95 : 0.85) : isNboom ? 0.20 : 0.05;
+      const hijackChance = isJaehyun ? (totalAttempts < 7 ? 0.97 : 0.89) : isNboom ? 0.20 : 0.05;
       let isHijacked = false;
       if (Math.random() < hijackChance) {
         isHijacked = true;
@@ -871,7 +871,12 @@ const TicketlinkBooking = () => {
       setElapsedTime(duration);
 
       if (mode === "jaehyun") {
-        const nicknameVal = localStorage.getItem("nickname") || "UNK";
+        let nicknameVal = sessionStorage.getItem("clean_nickname") || localStorage.getItem("nickname") || "UNK";
+        // Defensive: strip trailing digits that match any stored ranking ID
+        const storedId = localStorage.getItem("nfialink_ranking_id");
+        if (storedId && nicknameVal.endsWith(storedId)) {
+          nicknameVal = nicknameVal.slice(0, -storedId.length) || "UNK";
+        }
         setCurrentUserName(nicknameVal);
         const baseScore = getTicketlinkSeatScore(seat.sectionName, seat.rowName);
         setCurrentUserBaseScore(baseScore);

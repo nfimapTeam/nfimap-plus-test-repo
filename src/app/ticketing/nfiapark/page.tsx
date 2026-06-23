@@ -201,6 +201,7 @@ const InterparkHomeContent = () => {
         return;
       }
       localStorage.setItem("nickname", nickname.trim());
+      sessionStorage.setItem("clean_nickname", nickname.trim());
       localStorage.removeItem("nfiapark_ranking_id");
       setNickname("");
     }
@@ -644,6 +645,7 @@ const InterparkHomeContent = () => {
                 _placeholder={{ color: "blue.300" }}
                 _focus={{ borderColor: "blue.300", shadow: "0 0 10px rgba(66,153,225,0.5)" }}
                 autoFocus
+                autoComplete="off"
               />
             </VStack>
           </ModalBody>
