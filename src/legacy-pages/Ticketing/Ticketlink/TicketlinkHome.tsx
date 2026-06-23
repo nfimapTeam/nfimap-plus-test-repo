@@ -22,6 +22,8 @@ import {
   Radio,
   Divider,
   Image,
+  Input,
+  useToast,
 } from "@chakra-ui/react";
 import { ArrowLeft, RefreshCw, Clock, Settings, HelpCircle } from "lucide-react";
 
@@ -33,6 +35,9 @@ const TicketlinkHome = () => {
   // Practice configuration states
   const [difficulty, setDifficulty] = useState<"normal" | "nboom" | "jaehyun">("normal");
   const [delay, setDelay] = useState<number>(5); // seconds before open
+  const [nickname, setNickname] = useState<string>("");
+
+  const toast = useToast();
 
   // Ticketing progress states
   const [isStarted, setIsStarted] = useState<boolean>(false);
@@ -194,6 +199,21 @@ const TicketlinkHome = () => {
 
   // Handle ticketing simulation
   const startSimulation = () => {
+    if (difficulty === "jaehyun") {
+      if (!nickname.trim()) {
+        toast({
+          title: "닉네임이 필요합니다!",
+          description: "대환장모드 명예의 전당 등록을 위해 8자 이내의 닉네임을 입력해 주세요.",
+          status: "warning",
+          duration: 2500,
+          isClosable: true,
+          position: "top",
+        });
+        return;
+      }
+      localStorage.setItem("nickname", nickname.trim());
+    }
+
     onClose();
     setIsStarted(true);
     setIsOpenTicket(false);
@@ -695,6 +715,30 @@ const TicketlinkHome = () => {
                   </HStack>
                 </RadioGroup>
               </VStack>
+
+              {/* 닉네임 입력 (대환장모드 전용) */}
+              {difficulty === "jaehyun" && (
+                <VStack align="start" spacing={3} w="full" bg="purple.50" p={4} rounded="2xl" border="1.5px solid" borderColor="purple.200">
+                  <Text fontSize="14px" fontWeight="black" color="purple.700">
+                    👾 랭킹 등록용 닉네임 (최대 8글자)
+                  </Text>
+                  <Input
+                    placeholder="닉네임을 입력하세요"
+                    value={nickname}
+                    onChange={(e) => {
+                      if (e.target.value.length <= 8) {
+                        setNickname(e.target.value);
+                      }
+                    }}
+                    textAlign="center"
+                    fontSize="15px"
+                    fontWeight="bold"
+                    bg="white"
+                    borderColor="purple.300"
+                    _focus={{ borderColor: "purple.500", shadow: "0 0 8px rgba(168,85,247,0.3)" }}
+                  />
+                </VStack>
+              )}
             </VStack>
           </ModalBody>
           <ModalFooter borderTop="1px solid" borderColor="gray.100">

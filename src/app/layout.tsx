@@ -14,7 +14,11 @@ export const metadata: Metadata = {
   keywords: ["엔피맵", "N.Flying", "엔피아", "공연 정보", "팬 커뮤니티", "음악", "엔피맵+"],
   authors: [{ name: "N.Flying Fans Community" }],
   icons: {
-    icon: "/image/logo/logo_nfi.svg",
+    icon: [
+      { url: "/favicon.ico", sizes: "any" },
+      { url: "/image/logo/logo_nfi.svg", type: "image/svg+xml" }
+    ],
+    shortcut: "/favicon.ico",
     apple: "/image/logo/logo_nfi.svg",
   },
   manifest: "/manifest.json",

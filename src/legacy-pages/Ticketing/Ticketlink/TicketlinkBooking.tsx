@@ -29,6 +29,10 @@ import { useSetRecoilState } from "recoil";
 import { bookingResultState } from "../../../Atom/bookingResultState";
 import { DISTRACTION_MEMBERS, YOUTUBE_CHANNELS, DistractionMember, getYoutubeReplyMessage } from "../constants";
 
+import { supabase, hasSupabaseConfig } from "../../../lib/supabase";
+import { getTicketlinkSeatScore, getFinalScore } from "../../../utils/score";
+import { Leaderboard } from "../../../components/Leaderboard";
+
 import PuzzleScreen from "../Interpark/components/PuzzleScreen";
 import NfiaAuthScreen from "../Interpark/components/NfiaAuthScreen";
 
@@ -94,6 +98,10 @@ const TicketlinkBooking = () => {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [yiseonjwaCount, setYiseonjwaCount] = useState<number>(0);
   const [randomMember, setRandomMember] = useState<DistractionMember | null>(null);
+  
+  const [currentUserName, setCurrentUserName] = useState<string>("");
+  const [currentUserScore, setCurrentUserScore] = useState<number | undefined>(undefined);
+  const [currentUserBaseScore, setCurrentUserBaseScore] = useState<number>(0);
 
   // Seat layout grid state
   const [seats, setSeats] = useState<TicketlinkSeatData[]>([]);
@@ -601,10 +609,28 @@ const TicketlinkBooking = () => {
     if (phase === "seatSelect" && !showCaptchaModal) {
       const availableCount = seats.filter((s) => s.status === "available").length;
       const selectedSeat = seats.find((s) => s.id === selectedSeatId);
-      if (availableCount === 0 || (selectedSeatId && (!selectedSeat || selectedSeat.status === "occupied"))) {
-        const endTime = performance.now();
-        setElapsedTime((delayMs / 1000) + ((endTime - globalStartTimeRef.current) / 1000));
-        setPhase("fail");
+      
+      if (selectedSeatId && selectedSeat) {
+        if (selectedSeat.status === "occupied" && availableCount === 0) {
+          const endTime = performance.now();
+          setElapsedTime((delayMs / 1000) + ((endTime - globalStartTimeRef.current) / 1000));
+          setPhase("fail");
+        } else if (selectedSeat.status === "occupied" && availableCount > 0) {
+          setSelectedSeatId(null);
+          toast({
+            title: "이미 선택된 좌석입니다.",
+            description: "다른 예매자가 먼저 좌석을 선택했습니다.",
+            status: "error",
+            duration: 1500,
+            position: "top",
+          });
+        }
+      } else {
+        if (availableCount === 0) {
+          const endTime = performance.now();
+          setElapsedTime((delayMs / 1000) + ((endTime - globalStartTimeRef.current) / 1000));
+          setPhase("fail");
+        }
       }
     }
   }, [seats, phase, selectedSeatId, showCaptchaModal, startTime]);
@@ -816,7 +842,84 @@ const TicketlinkBooking = () => {
 
       // Successful Booking!
       const endTime = performance.now();
-      setElapsedTime((delayMs / 1000) + ((endTime - globalStartTimeRef.current) / 1000));
+      const duration = (delayMs / 1000) + ((endTime - globalStartTimeRef.current) / 1000);
+      setElapsedTime(duration);
+
+      if (mode === "jaehyun") {
+        const nicknameVal = localStorage.getItem("nickname") || "UNK";
+        setCurrentUserName(nicknameVal);
+        const baseScore = getTicketlinkSeatScore(seat.sectionName, seat.rowName);
+        setCurrentUserBaseScore(baseScore);
+        const finalScore = getFinalScore(baseScore, duration);
+        setCurrentUserScore(finalScore);
+
+        const submitScore = async () => {
+          if (hasSupabaseConfig) {
+            try {
+              const { data, error: selectError } = await supabase
+                .from("ticket_rankings")
+                .select("id, score")
+                .eq("ticket_type", "nfialink")
+                .eq("name", nicknameVal)
+                .maybeSingle();
+
+              if (selectError) {
+                console.error("Select error from Supabase:", selectError);
+                return;
+              }
+
+              if (!data) {
+                const { error: insertError } = await supabase
+                  .from("ticket_rankings")
+                  .insert({
+                    ticket_type: "nfialink",
+                    name: nicknameVal,
+                    score: finalScore,
+                  });
+                if (insertError) {
+                  console.error("Insert error from Supabase:", insertError);
+                }
+              } else if (finalScore > Number(data.score)) {
+                const { error: updateError } = await supabase
+                  .from("ticket_rankings")
+                  .update({
+                    score: finalScore,
+                  })
+                  .eq("id", data.id);
+                if (updateError) {
+                  console.error("Update error from Supabase:", updateError);
+                }
+              }
+            } catch (err) {
+              console.error("Failed to submit score to Supabase:", err);
+            }
+          } else {
+            const localKey = "mock_rankings_nfialink";
+            try {
+              const savedStr = localStorage.getItem(localKey);
+              let savedList = savedStr ? JSON.parse(savedStr) : [];
+              const existingIdx = savedList.findIndex((item: any) => item.name === nicknameVal);
+              if (existingIdx !== -1) {
+                if (finalScore > savedList[existingIdx].score) {
+                  savedList[existingIdx].score = finalScore;
+                }
+              } else {
+                savedList.push({
+                  name: nicknameVal,
+                  score: finalScore,
+                  created_at: new Date().toISOString(),
+                });
+              }
+              savedList.sort((a: any, b: any) => b.score - a.score);
+              localStorage.setItem(localKey, JSON.stringify(savedList));
+            } catch (e) {
+              console.error("Local storage ranking update failed:", e);
+            }
+          }
+        };
+        submitScore();
+      }
+
       setPhase("success");
     };
 
@@ -1770,7 +1873,11 @@ const TicketlinkBooking = () => {
         )}
 
         {phase === "success" && (
-          <Box bg="gray.100" p={5} w="full">
+          <Box
+            bgGradient={mode === "jaehyun" ? "linear(to-b, #FAF5FF, #FDF2F8)" : "linear(to-b, gray.50, gray.100)"}
+            p={5}
+            w="full"
+          >
             <VStack spacing={5} align="stretch" pb={8}>
               {/* Receipt Wrapper to screenshot */}
               <Box
@@ -1784,11 +1891,23 @@ const TicketlinkBooking = () => {
                 position="relative"
               >
                 {/* Clean white/red header */}
-                <VStack spacing={2} align="center" textAlign="center" pb={5} borderBottom="1px dashed" borderColor="gray.300">
-                  <Box bg="green.50" color="green.500" p={2} rounded="full" mb={1}>
-                    <CheckCircle2 size={32} />
+                <VStack spacing={3} align="center" textAlign="center" pb={5} borderBottom="1px dashed" borderColor="gray.300">
+                  <Box
+                    w="56px"
+                    h="56px"
+                    bg={mode === "jaehyun" ? "purple.500" : "green.50"}
+                    color={mode === "jaehyun" ? "white" : "green.500"}
+                    rounded="full"
+                    display="flex"
+                    alignItems="center"
+                    justifyContent="center"
+                    fontSize="24px"
+                    mb={1}
+                    shadow={mode === "jaehyun" ? "0 0 15px rgba(168, 85, 247, 0.4)" : "none"}
+                  >
+                    {mode === "jaehyun" ? "👑" : <CheckCircle2 size={30} />}
                   </Box>
-                  <Text fontSize="13px" fontWeight="bold" color="red.500">
+                  <Text fontSize="11px" fontWeight="black" color="red.500" letterSpacing="1px">
                     NFIALINK RESERVATION SUCCESS
                   </Text>
                   <Heading fontSize="20px" fontWeight="black" color="gray.800">
@@ -1797,6 +1916,18 @@ const TicketlinkBooking = () => {
                   <Text fontSize="11px" color="gray.400">
                     인도받으실 예매 번호를 꼭 확인해주세요.
                   </Text>
+                  {mode === "jaehyun" && (
+                    <HStack spacing={4} w="full" mt={3} justify="center">
+                      <VStack spacing={0.5} bg="purple.50" px={4} py={2} rounded="xl" border="1px solid" borderColor="purple.150" shadow="sm" flex={1}>
+                        <Text fontSize="9px" color="purple.500" fontWeight="black" letterSpacing="0.5px">소요 시간</Text>
+                        <Text fontSize="16px" color="purple.800" fontWeight="black" fontFamily="monospace">{elapsedTime.toFixed(2)}초</Text>
+                      </VStack>
+                      <VStack spacing={0.5} bg="pink.50" px={4} py={2} rounded="xl" border="1px solid" borderColor="pink.150" shadow="sm" flex={1}>
+                        <Text fontSize="9px" color="pink.500" fontWeight="black" letterSpacing="0.5px">최종 점수</Text>
+                        <Text fontSize="16px" color="pink.800" fontWeight="black" fontFamily="monospace">{currentUserScore?.toLocaleString()}점</Text>
+                      </VStack>
+                    </HStack>
+                  )}
                 </VStack>
 
                 {/* Receipt Fields */}
@@ -1829,6 +1960,15 @@ const TicketlinkBooking = () => {
                     <Text color="red.500" fontWeight="bold">
                       {elapsedTime.toFixed(2)}초
                     </Text>
+
+                    {mode === "jaehyun" && (
+                      <>
+                        <Text color="gray.400">최종점수</Text>
+                        <Text color="purple.500" fontWeight="black">
+                          {currentUserScore?.toLocaleString() || 0}점
+                        </Text>
+                      </>
+                    )}
 
                     <Text color="gray.400">예매자</Text>
                     <Text color="gray.800">엔피아 (N.Fia)</Text>
@@ -1964,6 +2104,52 @@ const TicketlinkBooking = () => {
                     </Box>
                   </VStack>
                 </Box>
+              )}
+
+              {/* 대환장모드 점수 및 리더보드 */}
+              {mode === "jaehyun" && (
+                <VStack spacing={4} w="full">
+                  <Box
+                    w="full"
+                    bg="rgba(168, 85, 247, 0.08)"
+                    border="2px solid"
+                    borderColor="purple.300"
+                    p={5}
+                    rounded="2xl"
+                    shadow="md"
+                    textAlign="center"
+                  >
+                    <Text fontSize="12px" fontWeight="black" color="purple.600" letterSpacing="1px">
+                      CRAZY MODE RESULT
+                    </Text>
+                    <Heading fontSize="28px" fontWeight="black" color="purple.800" mt={1}>
+                      SCORE: {currentUserScore?.toLocaleString() || 0}
+                    </Heading>
+                    <Divider my={3} borderColor="purple.200" />
+                    <Grid templateColumns="repeat(3, 1fr)" gap={2} fontSize="12px" fontWeight="bold">
+                      <VStack spacing={0.5}>
+                        <Text color="gray.500">기본 좌석 점수</Text>
+                        <Text fontSize="14px" color="purple.700">
+                          {currentUserBaseScore}점
+                        </Text>
+                      </VStack>
+                      <VStack spacing={0.5}>
+                        <Text color="gray.500">반응 시간</Text>
+                        <Text fontSize="14px" color="purple.700">{elapsedTime.toFixed(2)}초</Text>
+                      </VStack>
+                      <VStack spacing={0.5}>
+                        <Text color="gray.500">닉네임</Text>
+                        <Text fontSize="14px" color="purple.700">{currentUserName}</Text>
+                      </VStack>
+                    </Grid>
+                  </Box>
+
+                  <Leaderboard
+                    ticketType="nfialink"
+                    currentUserName={currentUserName}
+                    currentUserScore={currentUserScore}
+                  />
+                </VStack>
               )}
 
               {/* Control Buttons */}

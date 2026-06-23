@@ -8,6 +8,10 @@ import { useSetRecoilState } from "recoil";
 import { bookingResultState } from "../../../Atom/bookingResultState";
 import { DISTRACTION_MEMBERS, YOUTUBE_CHANNELS, DistractionMember, getYoutubeReplyMessage } from "../constants";
 
+import { supabase, hasSupabaseConfig } from "../../../lib/supabase";
+import { getInterparkSeatScore, getFinalScore } from "../../../utils/score";
+import { Leaderboard } from "../../../components/Leaderboard";
+
 import CaptchaScreen from "./components/CaptchaScreen";
 import PuzzleScreen from "./components/PuzzleScreen";
 import NfiaAuthScreen from "./components/NfiaAuthScreen";
@@ -185,6 +189,10 @@ const InterparkBooking = () => {
 
   const [showRobotCaptchaModal, setShowRobotCaptchaModal] = useState<boolean>(false);
   const initialAvailableSeatsBySectionRef = useRef<Record<string, number>>({});
+
+  const [currentUserName, setCurrentUserName] = useState<string>("");
+  const [currentUserScore, setCurrentUserScore] = useState<number | undefined>(undefined);
+  const [currentUserBaseScore, setCurrentUserBaseScore] = useState<number>(0);
 
   // Initialize state once at mount or reset
   const initializeBookingSession = useCallback(() => {
@@ -420,8 +428,34 @@ const InterparkBooking = () => {
       const seatsList = detailedSeats[selectedSection] || [];
       const availableCount = seatsList.filter((s) => s.status === "available" && !s.hijacked).length;
       const selectedSeatObj = seatsList.find((s) => s.status === "selected");
-      if (availableCount === 0 || (selectedSeatObj && selectedSeatObj.hijacked)) {
-        isFailed = true;
+
+      if (selectedSeatObj) {
+        if (selectedSeatObj.hijacked) {
+          if (availableCount === 0) {
+            isFailed = true;
+          } else {
+            // Deselect and mark as occupied immediately so the user can select another seat
+            setDetailedSeats((prev) => {
+              const next = { ...prev };
+              const sectionSeats = next[selectedSection] || [];
+              next[selectedSection] = sectionSeats.map((s) =>
+                s.id === selectedSeatObj.id ? { ...s, status: "occupied" } : s
+              );
+              return next;
+            });
+            toast({
+              title: "이미 선택된 좌석입니다.",
+              description: "다른 예매자가 먼저 좌석을 선택했습니다.",
+              status: "error",
+              duration: 1500,
+              position: "top",
+            });
+          }
+        }
+      } else {
+        if (availableCount === 0) {
+          isFailed = true;
+        }
       }
     }
 
@@ -616,6 +650,7 @@ const InterparkBooking = () => {
     const action = () => {
       // Double check if seat became occupied in the background
       const sectionId = seatId.split("-")[0];
+      const rowName = seatId.split("-")[1];
       const seats = detailedSeats[sectionId] || [];
       const seat = seats.find((s) => s.id === seatId);
 
@@ -659,6 +694,82 @@ const InterparkBooking = () => {
 
       setSelectedSeat(seatInfo);
       setElapsedTime(duration);
+
+      if (mode === "jaehyun") {
+        const nicknameVal = localStorage.getItem("nickname") || "UNK";
+        setCurrentUserName(nicknameVal);
+        const baseScore = getInterparkSeatScore(sectionId, rowName);
+        setCurrentUserBaseScore(baseScore);
+        const finalScore = getFinalScore(baseScore, duration);
+        setCurrentUserScore(finalScore);
+
+        const submitScore = async () => {
+          if (hasSupabaseConfig) {
+            try {
+              const { data, error: selectError } = await supabase
+                .from("ticket_rankings")
+                .select("id, score")
+                .eq("ticket_type", "nfiapark")
+                .eq("name", nicknameVal)
+                .maybeSingle();
+
+              if (selectError) {
+                console.error("Select error from Supabase:", selectError);
+                return;
+              }
+
+              if (!data) {
+                const { error: insertError } = await supabase
+                  .from("ticket_rankings")
+                  .insert({
+                    ticket_type: "nfiapark",
+                    name: nicknameVal,
+                    score: finalScore,
+                  });
+                if (insertError) {
+                  console.error("Insert error from Supabase:", insertError);
+                }
+              } else if (finalScore > Number(data.score)) {
+                const { error: updateError } = await supabase
+                  .from("ticket_rankings")
+                  .update({
+                    score: finalScore,
+                  })
+                  .eq("id", data.id);
+                if (updateError) {
+                  console.error("Update error from Supabase:", updateError);
+                }
+              }
+            } catch (err) {
+              console.error("Failed to submit score to Supabase:", err);
+            }
+          } else {
+            const localKey = "mock_rankings_nfiapark";
+            try {
+              const savedStr = localStorage.getItem(localKey);
+              let savedList = savedStr ? JSON.parse(savedStr) : [];
+              const existingIdx = savedList.findIndex((item: any) => item.name === nicknameVal);
+              if (existingIdx !== -1) {
+                if (finalScore > savedList[existingIdx].score) {
+                  savedList[existingIdx].score = finalScore;
+                }
+              } else {
+                savedList.push({
+                  name: nicknameVal,
+                  score: finalScore,
+                  created_at: new Date().toISOString(),
+                });
+              }
+              savedList.sort((a: any, b: any) => b.score - a.score);
+              localStorage.setItem(localKey, JSON.stringify(savedList));
+            } catch (e) {
+              console.error("Local storage ranking update failed:", e);
+            }
+          }
+        };
+        submitScore();
+      }
+
       setPhase("success");
     };
 
@@ -1067,31 +1178,13 @@ const InterparkBooking = () => {
         )}
 
         {phase === "success" && (
-          <Box bg="gray.50" p={5} w="full">
+          <Box
+            bgGradient={mode === "jaehyun" ? "linear(to-b, #FAF5FF, #FDF2F8)" : "linear(to-b, gray.50, gray.100)"}
+            p={5}
+            w="full"
+          >
             <VStack spacing={6} pb={8} align="stretch" maxW="400px" mx="auto" w="full">
               {/* 성공 배너 */}
-              <VStack spacing={2} align="center" textAlign="center" py={2}>
-                <Box
-                  w="70px"
-                  h="70px"
-                  bg="green.500"
-                  color="white"
-                  rounded="full"
-                  display="flex"
-                  alignItems="center"
-                  justifyContent="center"
-                  fontSize="36px"
-                  shadow="md"
-                >
-                  🎉
-                </Box>
-                <Heading fontSize="22px" fontWeight="900" color="gray.800" mt={2}>
-                  예매 완료!
-                </Heading>
-                <Text fontSize="13px" color="gray.500">
-                  실제 티켓팅 환경에서 훌륭히 예매를 성공하셨습니다.
-                </Text>
-              </VStack>
 
               {/* 상세 티켓 명세 */}
               <VStack
@@ -1204,14 +1297,35 @@ const InterparkBooking = () => {
 
                 {/* Ticket Stub (Receipt/Bottom Part) */}
                 <VStack p={5} spacing={3} align="stretch" bg="white">
-                  <Box bg="blue.50" border="1px solid" borderColor="blue.100" p={4} rounded="xl" textAlign="center">
-                    <Text fontSize="11px" color="blue.500" fontWeight="bold" letterSpacing="0.5px">
-                      소요 시간
-                    </Text>
-                    <Text fontSize="30px" fontWeight="950" color="blue.650" fontFamily="monospace" mt={1} lineHeight="1">
-                      {elapsedTime.toFixed(2)}초
-                    </Text>
-                  </Box>
+                  {mode === "jaehyun" ? (
+                    <Grid templateColumns="1fr 1fr" gap={3}>
+                      <Box bg="purple.50" border="1px solid" borderColor="purple.100" p={3.5} rounded="xl" textAlign="center">
+                        <Text fontSize="10px" color="purple.500" fontWeight="bold" letterSpacing="0.5px">
+                          소요 시간
+                        </Text>
+                        <Text fontSize="24px" fontWeight="black" color="purple.800" fontFamily="monospace" mt={1} lineHeight="1">
+                          {elapsedTime.toFixed(2)}초
+                        </Text>
+                      </Box>
+                      <Box bg="pink.50" border="1px solid" borderColor="pink.100" p={3.5} rounded="xl" textAlign="center">
+                        <Text fontSize="10px" color="pink.500" fontWeight="bold" letterSpacing="0.5px">
+                          최종 점수
+                        </Text>
+                        <Text fontSize="24px" fontWeight="black" color="pink.800" fontFamily="monospace" mt={1} lineHeight="1">
+                          {currentUserScore?.toLocaleString() || 0}
+                        </Text>
+                      </Box>
+                    </Grid>
+                  ) : (
+                    <Box bg="blue.50" border="1px solid" borderColor="blue.100" p={4} rounded="xl" textAlign="center">
+                      <Text fontSize="11px" color="blue.500" fontWeight="bold" letterSpacing="0.5px">
+                        소요 시간
+                      </Text>
+                      <Text fontSize="30px" fontWeight="950" color="blue.650" fontFamily="monospace" mt={1} lineHeight="1">
+                        {elapsedTime.toFixed(2)}초
+                      </Text>
+                    </Box>
+                  )}
 
                   <VStack spacing={1} mt={2}>
                     <HStack spacing={2} justify="center" h={8}>
@@ -1355,6 +1469,52 @@ const InterparkBooking = () => {
                     </Box>
                   </VStack>
                 </Box>
+              )}
+
+              {/* 대환장모드 점수 및 리더보드 */}
+              {mode === "jaehyun" && (
+                <VStack spacing={4} w="full">
+                  <Box
+                    w="full"
+                    bg="rgba(168, 85, 247, 0.08)"
+                    border="2px solid"
+                    borderColor="purple.300"
+                    p={5}
+                    rounded="2xl"
+                    shadow="md"
+                    textAlign="center"
+                  >
+                    <Text fontSize="12px" fontWeight="black" color="purple.600" letterSpacing="1px">
+                      CRAZY MODE RESULT
+                    </Text>
+                    <Heading fontSize="28px" fontWeight="black" color="purple.800" mt={1}>
+                      SCORE: {currentUserScore?.toLocaleString() || 0}
+                    </Heading>
+                    <Divider my={3} borderColor="purple.200" />
+                    <Grid templateColumns="repeat(3, 1fr)" gap={2} fontSize="12px" fontWeight="bold">
+                      <VStack spacing={0.5}>
+                        <Text color="gray.500">기본 좌석 점수</Text>
+                        <Text fontSize="14px" color="purple.700">
+                          {currentUserBaseScore}점
+                        </Text>
+                      </VStack>
+                      <VStack spacing={0.5}>
+                        <Text color="gray.500">반응 시간</Text>
+                        <Text fontSize="14px" color="purple.700">{elapsedTime.toFixed(2)}초</Text>
+                      </VStack>
+                      <VStack spacing={0.5}>
+                        <Text color="gray.500">닉네임</Text>
+                        <Text fontSize="14px" color="purple.700">{currentUserName}</Text>
+                      </VStack>
+                    </Grid>
+                  </Box>
+
+                  <Leaderboard
+                    ticketType="nfiapark"
+                    currentUserName={currentUserName}
+                    currentUserScore={currentUserScore}
+                  />
+                </VStack>
               )}
 
               {/* 제어 버튼 영역 */}
