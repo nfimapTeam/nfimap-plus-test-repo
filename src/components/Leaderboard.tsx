@@ -336,19 +336,22 @@ export const Leaderboard: React.FC<LeaderboardProps> = ({
                         {getRankBadge(rank)}
                       </Td>
                       <Td py={2.5} verticalAlign="middle">
-                        <Text
-                          fontSize="13px"
-                          fontWeight={isCurrentUser ? "950" : "bold"}
-                          color={isCurrentUser ? "#F472B6" : "gray.200"}
-                          noOfLines={1}
-                        >
-                          {entry.name}
+                        <HStack spacing={1.5} display="inline-flex" verticalAlign="middle">
+                          <Text
+                            fontSize="13px"
+                            fontWeight={isCurrentUser ? "950" : "bold"}
+                            color={isCurrentUser ? "#F472B6" : "gray.200"}
+                            noOfLines={1}
+                            maxW="110px"
+                          >
+                            {entry.name}
+                          </Text>
                           {isCurrentUser && (
-                            <Badge ml={1.5} bg="#EC4899" color="white" fontSize="9px" px={1.5} py={0.1} rounded="md" shadow="0 0 5px #EC4899">
+                            <Badge flexShrink={0} bg="#EC4899" color="white" fontSize="9px" px={1.5} py={0.1} rounded="md" shadow="0 0 5px #EC4899">
                               YOU
                             </Badge>
                           )}
-                        </Text>
+                        </HStack>
                       </Td>
                       <Td py={2.5} textAlign="right" verticalAlign="middle" pr={5}>
                         <Text
