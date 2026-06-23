@@ -166,10 +166,10 @@ const SeatMap = ({
             <HStack key={rowName} spacing={0.5} justify="center">
               {/* 열 이름 라벨 */}
               <Text
-                fontSize="9px"
+                fontSize={{ base: "8px", sm: "9px" }}
                 fontWeight="bold"
                 color="gray.500"
-                w="35px"
+                w={{ base: "26px", sm: "35px" }}
                 textAlign="right"
                 pr={1.5}
                 whiteSpace="nowrap"
@@ -189,17 +189,17 @@ const SeatMap = ({
                   }
 
                   return (
-                    <Box
-                      key={seat.id}
-                      w="10px"
-                      h="10px"
-                      bg={bgColor}
-                      rounded="1.5px"
-                      cursor={seat.status === "occupied" ? "default" : "pointer"}
-                      transition="0.1s"
-                      _hover={seat.status !== "occupied" ? { transform: "scale(1.3)" } : {}}
-                      onClick={() => handleSeatClick(seat)}
-                    />
+                     <Box
+                       key={seat.id}
+                       w={{ base: "8px", sm: "10px" }}
+                       h={{ base: "8px", sm: "10px" }}
+                       bg={bgColor}
+                       rounded="1.5px"
+                       cursor={seat.status === "occupied" ? "default" : "pointer"}
+                       transition="0.1s"
+                       _hover={seat.status !== "occupied" ? { transform: "scale(1.3)" } : {}}
+                       onClick={() => handleSeatClick(seat)}
+                     />
                   );
                 })}
             </HStack>

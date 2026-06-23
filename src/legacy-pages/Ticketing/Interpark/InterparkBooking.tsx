@@ -310,17 +310,14 @@ const InterparkBooking = () => {
       const targetDuration = isNboom ? 18 : isJaehyun ? 60 : 80;
       const targetDepletedRatio = Math.min(1.0, elapsed / targetDuration);
 
-      // 1. Calculate target remaining seats and deplete sections
-      const depletions: Record<string, number> = {};
+      // 1. Calculate target remaining seats and deplete sections list
       setSections((prevSections) => {
         if (prevSections.length === 0) return prevSections;
         return prevSections.map((sec) => {
           // Calculate section-specific depletion speed to satisfy top-first priority (F1/F2 -> F3/F4 -> Others)
           const secDepletedRatio = getDepletedRatio(sec.id, targetDepletedRatio);
-
           const initialAvail = initialAvailableSeatsBySectionRef.current[sec.id] || sec.initialSeats;
           const targetRemaining = Math.max(0, initialAvail - Math.round(initialAvail * secDepletedRatio));
-          depletions[sec.id] = sec.remainingSeats - targetRemaining;
           return {
             ...sec,
             remainingSeats: targetRemaining,
@@ -334,7 +331,13 @@ const InterparkBooking = () => {
           const prevSeats = prevDetailed[selectedSection];
           if (!prevSeats) return prevDetailed;
 
-          const numToOccupy = depletions[selectedSection] || 0;
+          // Compute target remaining seats directly for the selected section using math
+          const secDepletedRatio = getDepletedRatio(selectedSection, targetDepletedRatio);
+          const initialAvail = initialAvailableSeatsBySectionRef.current[selectedSection] || (selectedSection.startsWith("F") ? 600 : 400);
+          const targetRemaining = Math.max(0, initialAvail - Math.round(initialAvail * secDepletedRatio));
+
+          const availableSeats = prevSeats.filter((s) => s.status === "available" && !s.hijacked);
+          const numToOccupy = availableSeats.length - targetRemaining;
           if (numToOccupy <= 0) return prevDetailed;
 
           const updatedSeats = [...prevSeats];
@@ -342,7 +345,6 @@ const InterparkBooking = () => {
           const rowNamesList = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O", "P", "Q", "R", "S", "T"];
 
           // Sort available seats: front rows first but with jitter
-          const availableSeats = prevSeats.filter((s) => s.status === "available");
           const sortedAvailable = [...availableSeats].sort((a, b) => {
             const aIdx = rowNamesList.indexOf(a.rowName);
             const bIdx = rowNamesList.indexOf(b.rowName);
