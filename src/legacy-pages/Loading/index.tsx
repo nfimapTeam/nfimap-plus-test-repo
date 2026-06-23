@@ -14,7 +14,7 @@ const Loading = () => {
       p={8}
     >
       <Image
-        src="/image/nfiti/loading/loading-gif.gif"
+        src="/image/nfiti/loading/loading-gif.webp"
         alt="로딩 이미지"
         width="100px"
         height="100px"

@@ -72,7 +72,7 @@ const Process = ({
     "/image/nfiti/questions/02_QnA_PAGE_gauge_9.svg",
     "/image/nfiti/questions/redBtn.svg",
     "/image/nfiti/questions/blueBtn.svg",
-    "/image/nfiti/loading/loading-gif.gif",
+    "/image/nfiti/loading/loading-gif.webp",
   ];
   const preloadAllImage = () => {
     preloads.forEach((src) => {
@@ -104,7 +104,7 @@ const Process = ({
               height="100%"
             >
               <Image
-                src="/image/nfiti/loading/loading-gif.gif"
+                src="/image/nfiti/loading/loading-gif.webp"
                 alt="로딩 이미지"
                 width="100px"
                 height="100px"
@@ -137,7 +137,7 @@ const Process = ({
             loading="eager"
           />
           <Image
-            src="/image/nfiti/loading/loading-gif.gif"
+            src="/image/nfiti/loading/loading-gif.webp"
             alt="로딩 이미지"
             position="absolute"
             h="100px"

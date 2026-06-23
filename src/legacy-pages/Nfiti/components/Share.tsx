@@ -52,7 +52,7 @@ const Share = ({ nfiti }: ResultProps) => {
 
     
     const preloadImages = [
-        `/image/nfiti/loading/loading-gif.gif`,
+        `/image/nfiti/loading/loading-gif.webp`,
         `/image/Final_UI_save.svg`,
         `/image/Final_UI_share.svg`,
         `/image/nfiti/retry.png`,

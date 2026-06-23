@@ -419,8 +419,8 @@ const InterparkBooking = () => {
     } else if (phase === "seat" && selectedSection) {
       const seatsList = detailedSeats[selectedSection] || [];
       const availableCount = seatsList.filter((s) => s.status === "available" && !s.hijacked).length;
-      const hasSelectedSeat = seatsList.some((s) => s.status === "selected" && !s.hijacked);
-      if (availableCount === 0 && !hasSelectedSeat) {
+      const selectedSeatObj = seatsList.find((s) => s.status === "selected");
+      if (availableCount === 0 || (selectedSeatObj && selectedSeatObj.hijacked)) {
         isFailed = true;
       }
     }

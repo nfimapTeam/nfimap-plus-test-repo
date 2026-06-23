@@ -66,7 +66,7 @@ const NameInput: React.FC<NameInputProps> = ({ name, setName, onSubmit }) => {
     }
   }, [name]);
 
-  const preloads = ["/image/nfiti/name/01_NAMING_PAGE_character.gif"];
+  const preloads = ["/image/nfiti/name/01_NAMING_PAGE_character.webp"];
   const preloadAllImages = () => {
     preloads.forEach((src) => {
       const img = new (window as any).Image() as HTMLImageElement;
@@ -93,7 +93,7 @@ const NameInput: React.FC<NameInputProps> = ({ name, setName, onSubmit }) => {
         justifyContent="center"
       >
         <Image
-          src="/image/nfiti/name/01_NAMING_PAGE_character.gif"
+          src="/image/nfiti/name/01_NAMING_PAGE_character.webp"
           alt="캐릭터"
           w="100%"
           maxW="500px"

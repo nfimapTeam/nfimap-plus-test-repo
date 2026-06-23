@@ -16,7 +16,7 @@ import ShareModal from "./ShareModal";
 import { FaInstagram } from "react-icons/fa";
 
 interface TestResultDetails {
-  reason: string; 
+  reason: string;
   reasonText: string;
   keyPoints: {
     title: string;
@@ -45,7 +45,7 @@ interface ResultProps {
   handleRestartTest: () => void;
 }
 
-const Result = ({ name, resultCode,  testResult, handleRestartTest }: ResultProps) => {
+const Result = ({ name, resultCode, testResult, handleRestartTest }: ResultProps) => {
   const [showLoading, setShowLoading] = useState(true);
   const [imageLoaded, setImageLoaded] = useState(false);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -53,7 +53,7 @@ const Result = ({ name, resultCode,  testResult, handleRestartTest }: ResultProp
   const { isOpen, onOpen, onClose } = useDisclosure();
 
   const preloadImages = [
-    `/image/nfiti/loading/loading-gif.gif`,
+    `/image/nfiti/loading/loading-gif.webp`,
     `/image/Final_UI_save.svg`,
     `/image/Final_UI_share.svg`,
     `/image/nfiti/retry.png`,
@@ -111,7 +111,7 @@ const Result = ({ name, resultCode,  testResult, handleRestartTest }: ResultProp
         ctx?.drawImage(img, 0, 0);
 
         if (ctx) {
-          ctx.font = 'bold 64px nanumfont';
+          ctx.font = 'bold 32px nanumfont';
           ctx.fillStyle = "black";
           ctx.textAlign = "center";
           ctx.fillText(
@@ -147,7 +147,7 @@ ${result.details.reasonText}
   
 ${result.details.hashtags}`;
   }
-  
+
   const formattedResult = formatDetails(testResult);
 
   if (!testResult) {
@@ -175,7 +175,7 @@ ${result.details.hashtags}`;
               height="100%"
             >
               <Image
-                src="/image/nfiti/loading/loading-gif.gif"
+                src="/image/nfiti/loading/loading-gif.webp"
                 alt="로딩 이미지"
                 width="100px"
                 height="100px"
@@ -307,7 +307,7 @@ ${result.details.hashtags}`;
                   </Flex>
                 </Link>
               </Flex>
-              
+
             </Stack>
           )}
         </Flex>
@@ -316,7 +316,7 @@ ${result.details.hashtags}`;
         isOpen={isOpen}
         onClose={onClose}
         canvasRef={canvasRef}
-        shareTitle={name+"(이)는 "+testResult?.title || "테스트 결과"}
+        shareTitle={name + "(이)는 " + testResult?.title || "테스트 결과"}
         shareDescription={formattedResult}
         shareUrl={`nfiti/${resultCode}`}
       />

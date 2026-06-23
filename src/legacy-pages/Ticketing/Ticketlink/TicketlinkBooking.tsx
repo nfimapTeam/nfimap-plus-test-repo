@@ -600,7 +600,8 @@ const TicketlinkBooking = () => {
   useEffect(() => {
     if (phase === "seatSelect" && !showCaptchaModal) {
       const availableCount = seats.filter((s) => s.status === "available").length;
-      if (availableCount === 0 && !selectedSeatId) {
+      const selectedSeat = seats.find((s) => s.id === selectedSeatId);
+      if (availableCount === 0 || (selectedSeatId && (!selectedSeat || selectedSeat.status === "occupied"))) {
         const endTime = performance.now();
         setElapsedTime((delayMs / 1000) + ((endTime - globalStartTimeRef.current) / 1000));
         setPhase("fail");
@@ -790,7 +791,7 @@ const TicketlinkBooking = () => {
 
       // Bot hijack seat (이선좌) check on submission
       setTotalAttempts((prev) => prev + 1);
-      const hijackChance = isJaehyun ? (totalAttempts < 3 ? 0.95 : 0.80) : isNboom ? 0.20 : 0.05;
+      const hijackChance = isJaehyun ? (totalAttempts < 5 ? 0.95 : 0.85) : isNboom ? 0.20 : 0.05;
       let isHijacked = false;
       if (Math.random() < hijackChance) {
         isHijacked = true;

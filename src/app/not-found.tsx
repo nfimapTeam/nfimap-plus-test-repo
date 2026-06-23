@@ -14,7 +14,7 @@ export default function NotFoundPage() {
     >
       <VStack spacing={6}>
         <Image 
-          src="/image/nfiti/loading/loading-gif.gif"
+          src="/image/nfiti/loading/loading-gif.webp"
           alt="로딩 중"
           w="200px"
           h="200px"

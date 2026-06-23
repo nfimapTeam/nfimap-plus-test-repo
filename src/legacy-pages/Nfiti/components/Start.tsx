@@ -1,39 +1,19 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect } from "react";
 import { Box, Flex, Image, Button } from "@chakra-ui/react";
-import { convertToWebP } from "../../../utils/utils";
 
 interface NfitiProps {
   onStartTest: () => void;
 }
 
 const Nfiti = ({ onStartTest }: NfitiProps) => {
-  const [processedImages, setProcessedImages] = useState<string[]>([]);
-
-  const preloadImages = [
-    "image/nfiti/start/00_START_PAGE_startN.svg",
-    "image/nfiti/start/00_START_PAGE_startB.svg",
-  ];
-
-  const processImages = async () => {
-    try {
-      const processed = await Promise.all(
-        preloadImages.map((src) => convertToWebP(src))
-      );
-      setProcessedImages(processed);
-    } catch (error) {
-      console.error("Image processing error:", error);
-    }
-  };
-
-  useEffect(() => {
-    processImages();
-  }, []);
-
   const preloads = [
-    "/image/nfiti/start/00_START_PAGE_animation.gif",
+    "/image/nfiti/start/00_START_PAGE_startN.svg",
+    "/image/nfiti/start/00_START_PAGE_startB.svg",
+    "/image/nfiti/start/00_START_PAGE_animation.avifs",
   ];
+
   const preloadAllImages = () => {
     preloads.forEach((src) => {
       const img = new (window as any).Image() as HTMLImageElement;
@@ -46,49 +26,73 @@ const Nfiti = ({ onStartTest }: NfitiProps) => {
   }, []);
 
   return (
-    <Box position="relative" w="100%" h="calc(100svh - 68px)" overflow="hidden">
-      <Flex h="150px" justifyContent="center" alignItems="center" p="20px 40px">
-        {processedImages[0] && (
-          <Image src={processedImages[0]} alt="제목" loading="eager" />
-        )}
+    <Flex
+      direction="column"
+      justifyContent="space-between"
+      alignItems="center"
+      w="100%"
+      h="calc(100svh - 68px)"
+      overflow="hidden"
+      p="20px 0"
+    >
+      <Flex h="120px" flexShrink={0} justifyContent="center" alignItems="center" p="10px 40px">
+        <Image
+          src="/image/nfiti/start/00_START_PAGE_startN.svg"
+          alt="제목"
+          w="300px"
+          h="auto"
+          objectFit="contain"
+          loading="eager"
+        />
       </Flex>
       <Flex
-        h="calc(100svh - 368px)"
+        flex={1}
         alignItems="center"
         justifyContent="center"
         borderRadius="md"
         overflow="hidden"
+        w="100%"
       >
         <Image
           src="/image/nfiti/start/00_START_PAGE_animation.avifs"
           alt="랜덤 이미지"
           objectFit="contain"
+          maxH="100%"
           loading="eager"
         />
       </Flex>
-      <Flex h="150px" justifyContent="center" alignItems="center" p="20px 80px">
+      <Flex h="100px" flexShrink={0} justifyContent="center" alignItems="center" p="10px 80px">
         <Button
           onClick={onStartTest}
           bg="transparent"
           _hover={{
+            bg: "transparent",
             transform: "scale(1.05)",
           }}
           _active={{
+            bg: "transparent",
             transform: "scale(0.95)",
           }}
           borderRadius="md"
           padding="0"
+          w="240px"
+          h="71px"
           minWidth="auto"
           display="flex"
           alignItems="center"
           justifyContent="center"
         >
-          {processedImages[1] && (
-            <Image src={processedImages[1]} alt="테스트 시작" loading="eager" />
-          )}
+          <Image
+            src="/image/nfiti/start/00_START_PAGE_startB.svg"
+            alt="테스트 시작"
+            w="100%"
+            h="100%"
+            objectFit="contain"
+            loading="eager"
+          />
         </Button>
       </Flex>
-    </Box>
+    </Flex>
   );
 };
 

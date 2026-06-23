@@ -89,7 +89,7 @@ const SeatMap = ({
 
     // Simulate instant submit hijack (race condition where another user hits reserve first!)
     onIncrementAttempts();
-    const hijackChance = isJaehyun ? (totalAttempts < 3 ? 0.95 : 0.80) : isNboom ? 0.20 : 0.05;
+    const hijackChance = isJaehyun ? (totalAttempts < 5 ? 0.95 : 0.85) : isNboom ? 0.20 : 0.05;
     let finalSeats = seats;
     if (Math.random() < hijackChance) {
       finalSeats = seats.map((s) =>
@@ -155,56 +155,57 @@ const SeatMap = ({
         rounded="xl"
         border="1px solid"
         borderColor="gray.200"
-        overflow="hidden"
+        overflow="auto"
         flex="1"
         display="flex"
-        flexDirection="column"
         minH="unset"
       >
-        <VStack spacing={2} align="stretch" m="auto" py={4}>
-          {rowNames.map((rowName) => (
-            <HStack key={rowName} spacing={0.5} justify="center">
-              {/* 열 이름 라벨 */}
-              <Text
-                fontSize={{ base: "8px", sm: "9px" }}
-                fontWeight="bold"
-                color="gray.500"
-                w={{ base: "26px", sm: "35px" }}
-                textAlign="right"
-                pr={1.5}
-                whiteSpace="nowrap"
-              >
-                {rowName}열
-              </Text>
+        <Box m="auto" minW="max-content">
+          <VStack spacing={2} align="stretch" py={4}>
+            {rowNames.map((rowName) => (
+              <HStack key={rowName} spacing={0.5} justify="center">
+                {/* 열 이름 라벨 */}
+                <Text
+                  fontSize={{ base: "8px", sm: "9px" }}
+                  fontWeight="bold"
+                  color="gray.500"
+                  w={{ base: "26px", sm: "35px" }}
+                  textAlign="right"
+                  pr={1.5}
+                  whiteSpace="nowrap"
+                >
+                  {rowName}열
+                </Text>
 
-              {/* 실제 좌석 블록들 */}
-              {seats
-                .filter((s) => s.rowName === rowName)
-                .map((seat) => {
-                  let bgColor = "gray.300"; // occupied
-                  if (seat.status === "available") {
-                    bgColor = "blue.400"; // available
-                  } else if (seat.status === "selected") {
-                    bgColor = mode === "jaehyun" ? "purple.500" : mode === "nboom" ? "red.500" : "blue.500"; // Mode-based selected seat colors
-                  }
+                {/* 실제 좌석 블록들 */}
+                {seats
+                  .filter((s) => s.rowName === rowName)
+                  .map((seat) => {
+                    let bgColor = "gray.300"; // occupied
+                    if (seat.status === "available") {
+                      bgColor = "blue.400"; // available
+                    } else if (seat.status === "selected") {
+                      bgColor = mode === "jaehyun" ? "purple.500" : mode === "nboom" ? "red.500" : "blue.500"; // Mode-based selected seat colors
+                    }
 
-                  return (
-                     <Box
-                       key={seat.id}
-                       w={{ base: "8px", sm: "10px" }}
-                       h={{ base: "8px", sm: "10px" }}
-                       bg={bgColor}
-                       rounded="1.5px"
-                       cursor={seat.status === "occupied" ? "default" : "pointer"}
-                       transition="0.1s"
-                       _hover={seat.status !== "occupied" ? { transform: "scale(1.3)" } : {}}
-                       onClick={() => handleSeatClick(seat)}
-                     />
-                  );
-                })}
-            </HStack>
-          ))}
-        </VStack>
+                    return (
+                       <Box
+                         key={seat.id}
+                         w={{ base: "8px", sm: "10px" }}
+                         h={{ base: "8px", sm: "10px" }}
+                         bg={bgColor}
+                         rounded="1.5px"
+                         cursor={seat.status === "occupied" ? "default" : "pointer"}
+                         transition="0.1s"
+                         _hover={seat.status !== "occupied" ? { transform: "scale(1.3)" } : {}}
+                         onClick={() => handleSeatClick(seat)}
+                       />
+                    );
+                  })}
+              </HStack>
+            ))}
+          </VStack>
+        </Box>
       </Box>
 
       {/* 아래쪽 선택 정보 및 완료 버튼 */}
