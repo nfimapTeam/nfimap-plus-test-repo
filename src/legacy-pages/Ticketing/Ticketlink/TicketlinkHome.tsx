@@ -704,7 +704,7 @@ const TicketlinkHome = () => {
                       onClick={() => setDifficulty("cancel")}
                     >
                       <Radio value="cancel" colorScheme="teal">
-                        <Text fontWeight="bold" fontSize="14px" color="teal.700">취켓팅 모드 (Cancel)</Text>
+                        <Text fontWeight="bold" fontSize="14px" color="teal.700">취켓팅 모드 (Grab)</Text>
                       </Radio>
                       <Text fontSize="12px" color="gray.500" pl={6} mt={1}>
                         새로고침으로 풀리는 취소표를 선점하는 모드입니다.
