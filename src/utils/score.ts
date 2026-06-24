@@ -47,6 +47,6 @@ export function getTicketlinkSeatScore(sectionName: string, rowName: string): nu
 
 export function getFinalScore(baseScore: number, responseTime: number): number {
   const rTime = Math.max(0, responseTime);
-  return Math.round(baseScore * 100 - rTime);
+  return Math.round(Math.max(0, 100 - rTime) * baseScore);
 }
 

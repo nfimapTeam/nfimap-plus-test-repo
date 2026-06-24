@@ -15,7 +15,7 @@ import { SeatData } from "../types";
 
 interface SeatMapProps {
   sectionId: string;
-  mode: "normal" | "nboom" | "jaehyun";
+  mode: "normal" | "nboom" | "jaehyun" | "cancel";
   delayMs: number;
   seats: SeatData[];
   onSeatsChange: (updatedSeats: SeatData[]) => void;
@@ -25,6 +25,7 @@ interface SeatMapProps {
   onYiseonjwa?: () => void;
   totalAttempts: number;
   onIncrementAttempts: () => void;
+  onRefreshSeats?: () => void;
 }
 
 const SeatMap = ({
@@ -38,6 +39,7 @@ const SeatMap = ({
   onYiseonjwa,
   totalAttempts,
   onIncrementAttempts,
+  onRefreshSeats,
 }: SeatMapProps) => {
   const toast = useToast();
   const [selectedSeatId, setSelectedSeatId] = useState<string | null>(null);
@@ -89,7 +91,7 @@ const SeatMap = ({
 
     // Simulate instant submit hijack (race condition where another user hits reserve first!)
     onIncrementAttempts();
-    const hijackChance = isJaehyun ? (totalAttempts < 7 ? 0.01 : 0.89) : isNboom ? 0.20 : 0.05;
+    const hijackChance = isJaehyun ? (totalAttempts < 6 ? 0.96 : 0.87) : isNboom ? 0.20 : 0.05;
     let finalSeats = seats;
     if (Math.random() < hijackChance) {
       finalSeats = seats.map((s) =>
@@ -254,6 +256,19 @@ const SeatMap = ({
             >
               좌석선택완료
             </Button>
+            {mode === "cancel" && (
+              <Button
+                colorScheme="teal"
+                size="md"
+                flex={1}
+                rounded="xl"
+                onClick={onRefreshSeats}
+                fontWeight="bold"
+                leftIcon={<RefreshCw size={14} />}
+              >
+                새로고침
+              </Button>
+            )}
           </HStack>
         </VStack>
       </Box>

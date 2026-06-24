@@ -3,7 +3,7 @@ import { Box, VStack, HStack, Text, Badge, Grid, Divider } from "@chakra-ui/reac
 import { SectionSeatData } from "../types";
 
 interface StadiumMapProps {
-  mode: "normal" | "nboom" | "jaehyun";
+  mode: "normal" | "nboom" | "jaehyun" | "cancel";
   sections: SectionSeatData[];
   onSelectSection: (sectionId: string) => void;
 }
@@ -73,12 +73,12 @@ const StadiumMap = ({ mode, sections, onSelectSection }: StadiumMapProps) => {
                     justifyContent="center"
                     alignItems="center"
                     rounded="xl"
-                    cursor={sec && sec.remainingSeats > 0 ? "pointer" : "not-allowed"}
-                    opacity={sec && sec.remainingSeats > 0 ? 1 : 0.3}
+                    cursor={sec && (sec.remainingSeats > 0 || mode === "cancel") ? "pointer" : "not-allowed"}
+                    opacity={sec && (sec.remainingSeats > 0 || mode === "cancel") ? 1 : 0.3}
                     transition="0.15s"
-                    _hover={sec && sec.remainingSeats > 0 ? { transform: "scale(1.05)", bg: "purple.800" } : {}}
-                    _active={sec && sec.remainingSeats > 0 ? { transform: "scale(0.98)" } : {}}
-                    onClick={() => sec && sec.remainingSeats > 0 && onSelectSection(id)}
+                    _hover={sec && (sec.remainingSeats > 0 || mode === "cancel") ? { transform: "scale(1.05)", bg: "purple.800" } : {}}
+                    _active={sec && (sec.remainingSeats > 0 || mode === "cancel") ? { transform: "scale(0.98)" } : {}}
+                    onClick={() => sec && (sec.remainingSeats > 0 || mode === "cancel") && onSelectSection(id)}
                   >
                     <Text fontSize="12px" fontWeight="bold">{sec?.name}</Text>
                     <Text fontSize="11px" color="purple.200">{sec?.remainingSeats}석</Text>
@@ -104,12 +104,12 @@ const StadiumMap = ({ mode, sections, onSelectSection }: StadiumMapProps) => {
                     justifyContent="center"
                     alignItems="center"
                     rounded="xl"
-                    cursor={sec && sec.remainingSeats > 0 ? "pointer" : "not-allowed"}
-                    opacity={sec && sec.remainingSeats > 0 ? 1 : 0.3}
+                    cursor={sec && (sec.remainingSeats > 0 || mode === "cancel") ? "pointer" : "not-allowed"}
+                    opacity={sec && (sec.remainingSeats > 0 || mode === "cancel") ? 1 : 0.3}
                     transition="0.15s"
-                    _hover={sec && sec.remainingSeats > 0 ? { transform: "scale(1.05)", bg: "purple.800" } : {}}
-                    _active={sec && sec.remainingSeats > 0 ? { transform: "scale(0.98)" } : {}}
-                    onClick={() => sec && sec.remainingSeats > 0 && onSelectSection(id)}
+                    _hover={sec && (sec.remainingSeats > 0 || mode === "cancel") ? { transform: "scale(1.05)", bg: "purple.800" } : {}}
+                    _active={sec && (sec.remainingSeats > 0 || mode === "cancel") ? { transform: "scale(0.98)" } : {}}
+                    onClick={() => sec && (sec.remainingSeats > 0 || mode === "cancel") && onSelectSection(id)}
                   >
                     <Text fontSize="12px" fontWeight="bold">{sec?.name}</Text>
                     <Text fontSize="11px" color="purple.200">{sec?.remainingSeats}석</Text>
@@ -137,12 +137,12 @@ const StadiumMap = ({ mode, sections, onSelectSection }: StadiumMapProps) => {
                     justifyContent="center"
                     alignItems="center"
                     rounded="xl"
-                    cursor={sec && sec.remainingSeats > 0 ? "pointer" : "not-allowed"}
-                    opacity={sec && sec.remainingSeats > 0 ? 1 : 0.3}
+                    cursor={sec && (sec.remainingSeats > 0 || mode === "cancel") ? "pointer" : "not-allowed"}
+                    opacity={sec && (sec.remainingSeats > 0 || mode === "cancel") ? 1 : 0.3}
                     transition="0.15s"
-                    _hover={sec && sec.remainingSeats > 0 ? { transform: "scale(1.05)", bg: "teal.800" } : {}}
-                    _active={sec && sec.remainingSeats > 0 ? { transform: "scale(0.98)" } : {}}
-                    onClick={() => sec && sec.remainingSeats > 0 && onSelectSection(id)}
+                    _hover={sec && (sec.remainingSeats > 0 || mode === "cancel") ? { transform: "scale(1.05)", bg: "teal.800" } : {}}
+                    _active={sec && (sec.remainingSeats > 0 || mode === "cancel") ? { transform: "scale(0.98)" } : {}}
+                    onClick={() => sec && (sec.remainingSeats > 0 || mode === "cancel") && onSelectSection(id)}
                   >
                     <Text fontSize="12px" fontWeight="bold">{sec?.name}</Text>
                     <Text fontSize="11px" color="teal.200">{sec?.remainingSeats}석</Text>
@@ -168,12 +168,12 @@ const StadiumMap = ({ mode, sections, onSelectSection }: StadiumMapProps) => {
                     justifyContent="center"
                     alignItems="center"
                     rounded="xl"
-                    cursor={sec && sec.remainingSeats > 0 ? "pointer" : "not-allowed"}
-                    opacity={sec && sec.remainingSeats > 0 ? 1 : 0.3}
+                    cursor={sec && (sec.remainingSeats > 0 || mode === "cancel") ? "pointer" : "not-allowed"}
+                    opacity={sec && (sec.remainingSeats > 0 || mode === "cancel") ? 1 : 0.3}
                     transition="0.15s"
-                    _hover={sec && sec.remainingSeats > 0 ? { transform: "scale(1.05)", bg: "blue.800" } : {}}
-                    _active={sec && sec.remainingSeats > 0 ? { transform: "scale(0.98)" } : {}}
-                    onClick={() => sec && sec.remainingSeats > 0 && onSelectSection(id)}
+                    _hover={sec && (sec.remainingSeats > 0 || mode === "cancel") ? { transform: "scale(1.05)", bg: "blue.800" } : {}}
+                    _active={sec && (sec.remainingSeats > 0 || mode === "cancel") ? { transform: "scale(0.98)" } : {}}
+                    onClick={() => sec && (sec.remainingSeats > 0 || mode === "cancel") && onSelectSection(id)}
                   >
                     <Text fontSize="12px" fontWeight="bold">{sec?.name}</Text>
                     <Text fontSize="11px" color="blue.200">{sec?.remainingSeats}석</Text>
@@ -202,10 +202,10 @@ const StadiumMap = ({ mode, sections, onSelectSection }: StadiumMapProps) => {
               border="1px solid"
               borderColor="gray.200"
               justify="space-between"
-              cursor={sec.remainingSeats > 0 ? "pointer" : "not-allowed"}
-              opacity={sec.remainingSeats > 0 ? 1 : 0.4}
-              onClick={() => sec.remainingSeats > 0 && onSelectSection(sec.id)}
-              _hover={sec.remainingSeats > 0 ? { borderColor: "blue.500", bg: "blue.50" } : {}}
+              cursor={(sec.remainingSeats > 0 || mode === "cancel") ? "pointer" : "not-allowed"}
+              opacity={(sec.remainingSeats > 0 || mode === "cancel") ? 1 : 0.4}
+              onClick={() => (sec.remainingSeats > 0 || mode === "cancel") && onSelectSection(sec.id)}
+              _hover={(sec.remainingSeats > 0 || mode === "cancel") ? { borderColor: "blue.500", bg: "blue.50" } : {}}
               transition="all 0.1s"
             >
               <Text fontSize="13px" fontWeight="bold" color="gray.700">

@@ -64,13 +64,28 @@ const getDepletedRatio = (sectionId: string, targetDepletedRatio: number): numbe
 
 const generateInitialSeatsForSection = (
   sectionId: string,
-  mode: "normal" | "nboom" | "jaehyun",
+  mode: "normal" | "nboom" | "jaehyun" | "cancel",
   delayMs: number
 ): SeatData[] => {
   const isFloor = sectionId.startsWith("F");
   const numRows = isFloor ? 20 : 16;
   const numCols = isFloor ? 30 : 25;
   const rowNames = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O", "P", "Q", "R", "S", "T"].slice(0, numRows);
+
+  if (mode === "cancel") {
+    const seats: SeatData[] = [];
+    rowNames.forEach((row) => {
+      for (let col = 1; col <= numCols; col++) {
+        seats.push({
+          rowName: row,
+          colIndex: col,
+          status: "occupied",
+          id: `${sectionId}-${row}-${col}`,
+        });
+      }
+    });
+    return seats;
+  }
 
   const delaySec = Math.max(0, delayMs / 1000);
   const isHard = mode === "nboom";
@@ -132,7 +147,7 @@ const InterparkBooking = () => {
   const toast = useToast();
   const router = useRouter();
   const searchParams = useSearchParams();
-  const mode = (searchParams?.get("mode") as "normal" | "nboom" | "jaehyun") || "normal";
+  const mode = (searchParams?.get("mode") as "normal" | "nboom" | "jaehyun" | "cancel") || "normal";
   const delayParam = searchParams?.get("delay");
   const delayMs = delayParam ? parseInt(delayParam, 10) : 0;
   const failType = searchParams?.get("failType");
@@ -175,6 +190,9 @@ const InterparkBooking = () => {
   const [showPuzzleOverlay, setShowPuzzleOverlay] = useState<boolean>(false);
   const [pendingAction, setPendingAction] = useState<(() => Promise<void> | void) | null>(null);
   const [activePuzzleType, setActivePuzzleType] = useState<"slider" | "nfia">("nfia");
+
+  const [refreshCount, setRefreshCount] = useState<number>(0);
+  const lastRefreshIdRef = useRef<number>(0);
 
   useEffect(() => {
     if (showPuzzleOverlay) {
@@ -231,7 +249,7 @@ const InterparkBooking = () => {
     sessionStorage.setItem("nfiapark_entered_booking", "true");
     const isStarted = sessionStorage.getItem("nfiaparkStarted");
     if (!isStarted) {
-      router.push("/ticketing/nfiapark");
+      router.push("/ticketing/nfiapark?showSettings=true");
     } else {
       // Clear after a brief delay to allow React Strict Mode double-mount in dev to pass
       setTimeout(() => {
@@ -280,7 +298,7 @@ const InterparkBooking = () => {
       }
     }
 
-    if (qSize <= 0) {
+    if (qSize <= 0 || mode === "cancel") {
       setStartTime(performance.now());
       setPhase("dateSelect");
       return;
@@ -313,6 +331,7 @@ const InterparkBooking = () => {
   // Central background seat depletion loop (Optimized to prevent stuttering)
   useEffect(() => {
     if (phase === "queue" || phase === "success" || phase === "fail") return;
+    if (mode === "cancel") return;
 
     const isJaehyun = mode === "jaehyun";
     const isNboom = mode === "nboom";
@@ -423,6 +442,7 @@ const InterparkBooking = () => {
   // Check for failure (all seats sold out across sections/selected section and no seat selected)
   useEffect(() => {
     if (phase === "queue" || phase === "success" || phase === "fail" || phase === "dateSelect" || phase === "captcha") return;
+    if (mode === "cancel") return;
 
     let isFailed = false;
 
@@ -478,6 +498,7 @@ const InterparkBooking = () => {
     if (phase === "fail" || phase === "success") {
       setShowRobotCaptchaModal(false);
       setShowPuzzleOverlay(false);
+      setActiveFullScreenDistraction(null);
     }
   }, [phase]);
 
@@ -640,6 +661,139 @@ const InterparkBooking = () => {
     setPhase("stadium");
   };
 
+  // Cancel mode 1m (60s) game timer
+  useEffect(() => {
+    if (mode !== "cancel" || phase === "success" || phase === "fail" || phase === "queue") return;
+
+    const timer = setInterval(() => {
+      const elapsedMs = performance.now() - globalStartTimeRef.current;
+      if (elapsedMs >= 60000) { // 60 seconds
+        clearInterval(timer);
+        const endTime = performance.now();
+        setElapsedTime((delayMs / 1000) + ((endTime - globalStartTimeRef.current) / 1000));
+        setPhase("fail");
+      }
+    }, 500);
+
+    return () => clearInterval(timer);
+  }, [mode, phase, delayMs]);
+
+  const handleCancelModeRefresh = () => {
+    if (!selectedSection) return;
+
+    const nextCount = refreshCount + 1;
+    setRefreshCount(nextCount);
+
+    const performRefresh = () => {
+      const rand = Math.random();
+      let numSeatsToGenerate = 0;
+      let isLargeBatch = false;
+
+      if (rand < 1 / 15) {
+        numSeatsToGenerate = 30;
+        isLargeBatch = true;
+      } else if (rand < 1 / 15 + 1 / 5) {
+        numSeatsToGenerate = Math.floor(Math.random() * 3) + 1; // 1, 2, 3
+      }
+
+      const sectionSeats = detailedSeatsRef.current[selectedSection];
+      if (!sectionSeats) return;
+
+      const resetSeats: SeatData[] = sectionSeats.map((s) => ({
+        ...s,
+        status: "occupied",
+        hijacked: false,
+      }));
+
+      const generatedSeatIds: string[] = [];
+
+      if (numSeatsToGenerate > 0) {
+        const pool = Array.from({ length: resetSeats.length }).map((_, i) => i);
+        const shuffled = pool.sort(() => 0.5 - Math.random());
+
+        const numSelectable = isLargeBatch ? 5 : numSeatsToGenerate;
+        const numHijacked = isLargeBatch ? 25 : 0;
+
+        for (let i = 0; i < numSelectable + numHijacked; i++) {
+          const idx = shuffled[i];
+          if (idx !== undefined) {
+            resetSeats[idx].status = "available";
+            resetSeats[idx].hijacked = i >= numSelectable;
+            generatedSeatIds.push(resetSeats[idx].id);
+          }
+        }
+      }
+
+      setDetailedSeats((prev) => ({
+        ...prev,
+        [selectedSection]: resetSeats,
+      }));
+
+      if (numSeatsToGenerate === 0) {
+        setSections((prevSecs) => {
+          return prevSecs.map((sec) => {
+            if (sec.id === selectedSection) {
+              return { ...sec, remainingSeats: 0 };
+            }
+            return sec;
+          });
+        });
+      } else {
+        const numSelectable = isLargeBatch ? 5 : numSeatsToGenerate;
+        const numHijacked = isLargeBatch ? 25 : 0;
+        setSections((prevSecs) => {
+          return prevSecs.map((sec) => {
+            if (sec.id === selectedSection) {
+              return { ...sec, remainingSeats: numSelectable + numHijacked };
+            }
+            return sec;
+          });
+        });
+      }
+
+      const currentRefreshId = ++lastRefreshIdRef.current;
+
+      generatedSeatIds.forEach((seatId) => {
+        // Disappear delay per seat: 500ms - 1600ms
+        const seatDelay = Math.random() * 800 + 500;
+
+        setTimeout(() => {
+          if (currentRefreshId !== lastRefreshIdRef.current) return;
+          setDetailedSeats((prev) => {
+            const sectionSeats = prev[selectedSection];
+            if (!sectionSeats) return prev;
+
+            const updated = sectionSeats.map((s) => {
+              if (s.id === seatId && s.status === "available") {
+                return { ...s, status: "occupied" as const, hijacked: false };
+              }
+              return s;
+            });
+
+            const remainingCount = updated.filter((s) => s.status === "available").length;
+            setSections((prevSecs) => {
+              return prevSecs.map((sec) => {
+                if (sec.id === selectedSection) {
+                  return { ...sec, remainingSeats: remainingCount };
+                }
+                return sec;
+              });
+            });
+
+            return { ...prev, [selectedSection]: updated };
+          });
+        }, seatDelay);
+      });
+    };
+
+    if (nextCount > 0 && nextCount % 6 === 0) {
+      setPendingAction(() => performRefresh);
+      setShowPuzzleOverlay(true);
+    } else {
+      performRefresh();
+    }
+  };
+
   const handleYiseonjwaTrigger = () => {
     setYiseonjwaCount((prev) => {
       const next = prev + 1;
@@ -783,7 +937,7 @@ const InterparkBooking = () => {
             try {
               const savedStr = localStorage.getItem(localKey);
               let savedList = savedStr ? JSON.parse(savedStr) : [];
-              
+
               if (!finalId) {
                 finalId = Math.floor(Math.random() * 9000) + 1000;
                 localStorage.setItem("nfiapark_ranking_id", String(finalId));
@@ -827,7 +981,7 @@ const InterparkBooking = () => {
     sessionStorage.removeItem("nfiapark_entered_booking");
     sessionStorage.removeItem("nfiaparkStarted");
     setTotalAttempts(0);
-    router.push(`/ticketing/nfiapark`);
+    router.push(`/ticketing/nfiapark?showSettings=true`);
   };
 
   const handleCloseBooking = () => {
@@ -837,7 +991,7 @@ const InterparkBooking = () => {
     sessionStorage.removeItem("interpark_sim_start_time");
     sessionStorage.removeItem("nfiapark_entered_booking");
     sessionStorage.removeItem("nfiaparkStarted");
-    router.push("/ticketing");
+    router.push("/ticketing/nfiapark?showSettings=true");
   };
 
   return (
@@ -1217,6 +1371,7 @@ const InterparkBooking = () => {
             onYiseonjwa={handleYiseonjwaTrigger}
             totalAttempts={totalAttempts}
             onIncrementAttempts={() => setTotalAttempts((prev) => prev + 1)}
+            onRefreshSeats={handleCancelModeRefresh}
           />
         )}
 
@@ -1789,7 +1944,7 @@ const InterparkBooking = () => {
           </Box>
         )}
         {/* Robot Member CAPTCHA Modal */}
-        <Modal isOpen={showRobotCaptchaModal} onClose={() => { }} size="xs" isCentered closeOnOverlayClick={false}>
+        <Modal isOpen={showRobotCaptchaModal && phase !== "fail" && phase !== "success"} onClose={() => { }} size="xs" isCentered closeOnOverlayClick={false}>
           <ModalOverlay bg="blackAlpha.800" backdropFilter="blur(2px)" />
           <ModalContent rounded="2xl" border="1px solid" borderColor="red.100" overflow="hidden">
             <ModalBody p={0}>
@@ -1810,7 +1965,7 @@ const InterparkBooking = () => {
         </Modal>
 
         {/* CAPTCHA Overlay */}
-        {showPuzzleOverlay && (
+        {showPuzzleOverlay && phase !== "fail" && phase !== "success" && (
           <Box
             position="absolute"
             top={0}
@@ -1836,7 +1991,7 @@ const InterparkBooking = () => {
         )}
 
         {/* Fullscreen Distraction Overlays */}
-        {activeFullScreenDistraction && (
+        {activeFullScreenDistraction && phase !== "fail" && phase !== "success" && (
           <Box
             position="absolute"
             top={0}

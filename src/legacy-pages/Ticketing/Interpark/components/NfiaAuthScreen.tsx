@@ -155,6 +155,7 @@ const NfiaAuthScreen = ({ onSuccess, isRobotCheck = false }: NfiaAuthScreenProps
               border="1px solid"
               borderColor="gray.200"
               shadow="sm"
+              pointerEvents="none"
             />
           </Box>
         ))}

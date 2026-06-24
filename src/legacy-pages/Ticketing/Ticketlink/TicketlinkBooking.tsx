@@ -57,6 +57,7 @@ interface TicketlinkSeatData {
   status: "available" | "occupied" | "selected";
   grade: "VIP" | "S" | "A";
   price: number;
+  hijacked?: boolean;
 }
 
 const TicketlinkBooking = () => {
@@ -64,7 +65,7 @@ const TicketlinkBooking = () => {
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  const mode = (searchParams?.get("mode") as "normal" | "nboom" | "jaehyun") || "normal";
+  const mode = (searchParams?.get("mode") as "normal" | "nboom" | "jaehyun" | "cancel") || "normal";
   const delayParam = searchParams?.get("delay");
   const delayMs = delayParam ? parseInt(delayParam, 10) : 0;
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -95,9 +96,11 @@ const TicketlinkBooking = () => {
   const [startTime, setStartTime] = useState<number>(0);
   const [elapsedTime, setElapsedTime] = useState<number>(0);
   const globalStartTimeRef = useRef<number>(performance.now());
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [yiseonjwaCount, setYiseonjwaCount] = useState<number>(0);
   const [randomMember, setRandomMember] = useState<DistractionMember | null>(null);
+
+  const [refreshCount, setRefreshCount] = useState<number>(0);
+  const lastRefreshIdRef = useRef<number>(0);
 
   const [currentUserName, setCurrentUserName] = useState<string>("");
   const [currentUserScore, setCurrentUserScore] = useState<number | undefined>(undefined);
@@ -260,7 +263,7 @@ const TicketlinkBooking = () => {
     sessionStorage.setItem("nfialink_entered_booking", "true");
     const isStarted = sessionStorage.getItem("nfialinkStarted");
     if (!isStarted) {
-      router.push("/ticketing/nfialink");
+      router.push("/ticketing/nfialink?showSettings=true");
     } else {
       // Clear after a brief delay to allow React Strict Mode double-mount in dev to pass
       setTimeout(() => {
@@ -497,6 +500,15 @@ const TicketlinkBooking = () => {
       });
     });
 
+    if (mode === "cancel") {
+      const allOccupiedSeats = generatedSeats.map((s) => ({
+        ...s,
+        status: "occupied" as const,
+      }));
+      setSeats(allOccupiedSeats);
+      return;
+    }
+
     let currentSeats = generatedSeats;
     if (delayMs > 0) {
       const delaySec = delayMs / 1000;
@@ -536,7 +548,7 @@ const TicketlinkBooking = () => {
       }
     }
 
-    if (qSize <= 0) {
+    if (qSize <= 0 || mode === "cancel") {
       setPhase("dateSelect");
       initializeSeats();
       return;
@@ -569,6 +581,7 @@ const TicketlinkBooking = () => {
   // Handle seat layout depletion loop (runs continuously in background during dateSelect and seatSelect)
   useEffect(() => {
     if (phase !== "dateSelect" && phase !== "seatSelect") return;
+    if (mode === "cancel") return;
 
     const intervalTime = phase === "seatSelect" ? 100 : 500;
     let intervalId: NodeJS.Timeout | null = null;
@@ -617,6 +630,7 @@ const TicketlinkBooking = () => {
   // Failure detection (all seats sold out and no seat selected)
   useEffect(() => {
     if (phase === "seatSelect" && !showCaptchaModal) {
+      if (mode === "cancel") return;
       const availableCount = seats.filter((s) => s.status === "available").length;
       const selectedSeat = seats.find((s) => s.id === selectedSeatId);
 
@@ -651,6 +665,7 @@ const TicketlinkBooking = () => {
       setShowRobotCaptchaModal(false);
       setShowPuzzleOverlay(false);
       setShowCaptchaModal(false);
+      setActiveFullScreenDistraction(null);
     }
   }, [phase]);
 
@@ -806,6 +821,94 @@ const TicketlinkBooking = () => {
     setShowPuzzleOverlay(false);
   };
 
+  // Cancel mode 1m (60s) game timer
+  useEffect(() => {
+    if (mode !== "cancel" || phase === "success" || phase === "fail" || phase === "queue") return;
+
+    const timer = setInterval(() => {
+      const elapsedMs = performance.now() - globalStartTimeRef.current;
+      if (elapsedMs >= 60000) { // 60 seconds
+        clearInterval(timer);
+        const endTime = performance.now();
+        setElapsedTime((delayMs / 1000) + ((endTime - globalStartTimeRef.current) / 1000));
+        setPhase("fail");
+      }
+    }, 500);
+
+    return () => clearInterval(timer);
+  }, [mode, phase, delayMs]);
+
+  const handleCancelModeRefresh = () => {
+    const nextCount = refreshCount + 1;
+    setRefreshCount(nextCount);
+
+    const performRefresh = () => {
+      const rand = Math.random();
+      let numSeatsToGenerate = 0;
+      let isLargeBatch = false;
+
+      if (rand < 1 / 15) {
+        numSeatsToGenerate = 50;
+        isLargeBatch = true;
+      } else if (rand < 1 / 15 + 1 / 5) {
+        numSeatsToGenerate = Math.floor(Math.random() * 3) + 4; // 4, 5, 6
+      }
+
+      const resetSeats: TicketlinkSeatData[] = seatsRef.current.map((s) => ({
+        ...s,
+        status: "occupied",
+        hijacked: false,
+      }));
+
+      const generatedSeatIds: string[] = [];
+
+      if (numSeatsToGenerate > 0) {
+        const pool = Array.from({ length: resetSeats.length }).map((_, i) => i);
+        const shuffled = pool.sort(() => 0.5 - Math.random());
+
+        const numSelectable = isLargeBatch ? 8 : numSeatsToGenerate;
+        const numHijacked = isLargeBatch ? 42 : 0;
+
+        for (let i = 0; i < numSelectable + numHijacked; i++) {
+          const idx = shuffled[i];
+          if (idx !== undefined) {
+            resetSeats[idx].status = "available";
+            resetSeats[idx].hijacked = i >= numSelectable;
+            generatedSeatIds.push(resetSeats[idx].id);
+          }
+        }
+      }
+
+      setSeats(resetSeats);
+
+      const currentRefreshId = ++lastRefreshIdRef.current;
+
+      generatedSeatIds.forEach((seatId) => {
+        // Disappear delay per seat: 500ms - 1600ms
+        const seatDelay = Math.random() * 800 + 500;
+
+        setTimeout(() => {
+          if (currentRefreshId !== lastRefreshIdRef.current) return;
+          setSeats((prev) => {
+            return prev.map((s) => {
+              if (s.id === seatId && s.status === "available") {
+                return { ...s, status: "occupied" as const, hijacked: false };
+              }
+              return s;
+            });
+          });
+        }, seatDelay);
+      });
+    };
+
+    if (nextCount > 0 && nextCount % 6 === 0) {
+      setPendingAction(() => performRefresh);
+      setShowPuzzleOverlay(true);
+    } else {
+      performRefresh();
+    }
+  };
+
   // Seat Selection Completion
   const handleSeatSelectNext = () => {
     if (!selectedSeatId) {
@@ -842,7 +945,7 @@ const TicketlinkBooking = () => {
 
       // Bot hijack seat (이선좌) check on submission
       setTotalAttempts((prev) => prev + 1);
-      const hijackChance = isJaehyun ? (totalAttempts < 7 ? 0.97 : 0.89) : isNboom ? 0.20 : 0.05;
+      const hijackChance = mode === "cancel" ? (seat?.hijacked ? 1.0 : 0.0) : (isJaehyun ? (totalAttempts < 6 ? 0.96 : 0.87) : isNboom ? 0.20 : 0.05);
       let isHijacked = false;
       if (Math.random() < hijackChance) {
         isHijacked = true;
@@ -1000,7 +1103,7 @@ const TicketlinkBooking = () => {
     sessionStorage.removeItem("nfialink_entered_booking");
     sessionStorage.removeItem("nfialinkStarted");
     setTotalAttempts(0);
-    router.push(`/ticketing/nfialink`);
+    router.push(`/ticketing/nfialink?showSettings=true`);
   };
 
   // Get selected seat info text
@@ -1274,7 +1377,7 @@ const TicketlinkBooking = () => {
                   sessionStorage.removeItem("ticketlink_sim_delay");
                   sessionStorage.removeItem("ticketlink_sim_start_time");
                   sessionStorage.removeItem("ticketlink_sim_offset");
-                  router.push("/ticketing/nfialink");
+                  router.push("/ticketing/nfialink?showSettings=true");
                 }}
               />
             </HStack>
@@ -1329,7 +1432,7 @@ const TicketlinkBooking = () => {
                 rounded="xl"
                 fontSize="14px"
                 fontWeight="bold"
-                onClick={() => router.push("/ticketing/nfialink")}
+                onClick={() => router.push("/ticketing/nfialink?showSettings=true")}
               >
                 닫기
               </Button>
@@ -1450,7 +1553,7 @@ const TicketlinkBooking = () => {
                     sessionStorage.removeItem("ticketlink_sim_delay");
                     sessionStorage.removeItem("ticketlink_sim_start_time");
                     sessionStorage.removeItem("ticketlink_sim_offset");
-                    router.push("/ticketing/nfialink");
+                    router.push("/ticketing/nfialink?showSettings=true");
                   }}
                 />
               </HStack>
@@ -1866,7 +1969,7 @@ const TicketlinkBooking = () => {
               borderColor="gray.200"
               shadow="2xl"
               zIndex={50}
-              transform={selectedSeatId ? "translateY(0)" : "translateY(100%)"}
+              transform={(selectedSeatId || mode === "cancel") ? "translateY(0)" : "translateY(100%)"}
               transition="transform 0.3s cubic-bezier(0.16, 1, 0.3, 1)"
             >
               {/* Dynamic Selected Seat Overlay Info */}
@@ -1927,6 +2030,22 @@ const TicketlinkBooking = () => {
                 >
                   다음단계
                 </Button>
+                {mode === "cancel" && (
+                  <Button
+                    colorScheme="red"
+                    bg="#FF3838"
+                    _hover={{ bg: "#E02E2E" }}
+                    flex={4}
+                    rounded="xl"
+                    h="48px"
+                    fontSize="15px"
+                    fontWeight="black"
+                    leftIcon={<RefreshCw size={15} />}
+                    onClick={handleCancelModeRefresh}
+                  >
+                    새로고침
+                  </Button>
+                )}
               </HStack>
             </Box>
           </Box>
@@ -2365,7 +2484,7 @@ const TicketlinkBooking = () => {
       </Box>
 
       {/* Local Coral/Pink Captcha Modal */}
-      <Modal isOpen={showCaptchaModal} onClose={() => { }} size="xs" isCentered closeOnOverlayClick={false}>
+      <Modal isOpen={showCaptchaModal && phase !== "fail" && phase !== "success"} onClose={() => { }} size="xs" isCentered closeOnOverlayClick={false}>
         <ModalOverlay bg="blackAlpha.800" backdropFilter="blur(2px)" />
         <ModalContent rounded="2xl" border="1px solid" borderColor="red.100">
           <ModalHeader pb={0}>
@@ -2455,7 +2574,7 @@ const TicketlinkBooking = () => {
       </Modal>
 
       {/* Robot Member CAPTCHA Modal */}
-      <Modal isOpen={showRobotCaptchaModal} onClose={() => { }} size="xs" isCentered closeOnOverlayClick={false}>
+      <Modal isOpen={showRobotCaptchaModal && phase !== "fail" && phase !== "success"} onClose={() => { }} size="xs" isCentered closeOnOverlayClick={false}>
         <ModalOverlay bg="blackAlpha.800" backdropFilter="blur(2px)" />
         <ModalContent rounded="2xl" border="1px solid" borderColor="red.100" overflow="hidden">
           <ModalBody p={0}>
@@ -2476,7 +2595,7 @@ const TicketlinkBooking = () => {
       </Modal>
 
       {/* CAPTCHA Overlay */}
-      {showPuzzleOverlay && (
+      {showPuzzleOverlay && phase !== "fail" && phase !== "success" && (
         <Box
           position="absolute"
           top={0}
@@ -2502,7 +2621,7 @@ const TicketlinkBooking = () => {
       )}
 
       {/* Full-screen Fromm/YouTube distraction overlay */}
-      {activeFullScreenDistraction && (
+      {activeFullScreenDistraction && phase !== "fail" && phase !== "success" && (
         <Box
           position="absolute"
           top={0}
