@@ -679,44 +679,34 @@ const TicketlinkHome = () => {
 
                     <Box
                       border="1px solid"
-                      borderColor="gray.200"
-                      bg="gray.50"
+                      borderColor={difficulty === "jaehyun" ? "purple.200" : "gray.200"}
+                      bg={difficulty === "jaehyun" ? "purple.50" : "white"}
                       p={3}
                       rounded="xl"
-                      cursor="not-allowed"
-                      opacity={0.6}
+                      cursor="pointer"
+                      onClick={() => setDifficulty("jaehyun")}
                     >
-                      <Radio value="jaehyun" colorScheme="purple" isDisabled>
-                        <Text fontWeight="bold" fontSize="14px" color="gray.500">
-                          대환장 모드 (Crazy){" "}
-                          <Text as="span" fontSize="11px" color="red.500" fontWeight="bold" ml={1}>
-                            (Coming Soon)
-                          </Text>
-                        </Text>
+                      <Radio value="jaehyun" colorScheme="purple">
+                        <Text fontWeight="bold" fontSize="14px" color="purple.700">대환장 모드 (Crazy)</Text>
                       </Radio>
-                      <Text fontSize="12px" color="gray.400" pl={6} mt={1}>
+                      <Text fontSize="12px" color="gray.500" pl={6} mt={1}>
                         온갖 극악의 방해 요소가 괴롭히는 대환장 파티입니다.
                       </Text>
                     </Box>
 
                     <Box
                       border="1px solid"
-                      borderColor="gray.200"
-                      bg="gray.50"
+                      borderColor={difficulty === "cancel" ? "teal.200" : "gray.200"}
+                      bg={difficulty === "cancel" ? "teal.50" : "white"}
                       p={3}
                       rounded="xl"
-                      cursor="not-allowed"
-                      opacity={0.6}
+                      cursor="pointer"
+                      onClick={() => setDifficulty("cancel")}
                     >
-                      <Radio value="cancel" colorScheme="teal" isDisabled>
-                        <Text fontWeight="bold" fontSize="14px" color="gray.500">
-                          취켓팅 모드 (Grab){" "}
-                          <Text as="span" fontSize="11px" color="red.500" fontWeight="bold" ml={1}>
-                            (Coming Soon)
-                          </Text>
-                        </Text>
+                      <Radio value="cancel" colorScheme="teal">
+                        <Text fontWeight="bold" fontSize="14px" color="teal.700">취켓팅 모드 (Grab)</Text>
                       </Radio>
-                      <Text fontSize="12px" color="gray.400" pl={6} mt={1}>
+                      <Text fontSize="12px" color="gray.500" pl={6} mt={1}>
                         새로고침으로 풀리는 취소표를 선점하는 모드입니다.
                       </Text>
                     </Box>
