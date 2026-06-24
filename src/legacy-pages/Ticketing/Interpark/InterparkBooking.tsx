@@ -811,6 +811,7 @@ const InterparkBooking = () => {
   };
 
   const handleYiseonjwaTrigger = () => {
+    if (mode === "cancel") return;
     setYiseonjwaCount((prev) => {
       const next = prev + 1;
       if (next >= 3) {
