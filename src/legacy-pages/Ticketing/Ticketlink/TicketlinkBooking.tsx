@@ -941,7 +941,7 @@ const TicketlinkBooking = () => {
       });
     };
 
-    if (nextCount > 0 && nextCount % 6 === 0) {
+    if (nextCount > 0 && nextCount % 10 === 0) {
       setPendingAction(() => performRefresh);
       setShowPuzzleOverlay(true);
     } else {
