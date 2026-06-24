@@ -1245,6 +1245,7 @@ const TicketlinkBooking = () => {
     <Box
       position="relative"
       zIndex={100}
+      minH="100svh"
       h={(phase === "success" || phase === "fail") ? "auto" : "100svh"}
       maxH={(phase === "success" || phase === "fail") ? "none" : "100svh"}
       overflow={(phase === "success" || phase === "fail") ? "visible" : "hidden"}
@@ -2099,6 +2100,9 @@ const TicketlinkBooking = () => {
             bgGradient={mode === "jaehyun" ? "linear(to-b, #FAF5FF, #FDF2F8)" : "linear(to-b, gray.50, gray.100)"}
             p={5}
             w="full"
+            flex="1"
+            display="flex"
+            flexDirection="column"
           >
             <VStack spacing={5} align="stretch" pb={8}>
               {/* Receipt Wrapper to screenshot */}
@@ -2415,7 +2419,7 @@ const TicketlinkBooking = () => {
         )}
 
         {phase === "fail" && (
-          <Box bg="gray.100" p={5} w="full">
+          <Box bg="gray.100" p={5} w="full" flex="1" display="flex" flexDirection="column">
             <VStack spacing={5} align="stretch" pb={8}>
               <Box
                 bg="white"

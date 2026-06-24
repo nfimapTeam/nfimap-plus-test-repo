@@ -1399,6 +1399,9 @@ const InterparkBooking = () => {
             bgGradient={mode === "jaehyun" ? "linear(to-b, #FAF5FF, #FDF2F8)" : "linear(to-b, gray.50, gray.100)"}
             p={5}
             w="full"
+            flex="1"
+            display="flex"
+            flexDirection="column"
           >
             <VStack spacing={6} pb={8} align="stretch" maxW="400px" mx="auto" w="full">
               {/* 성공 배너 */}
@@ -1775,7 +1778,7 @@ const InterparkBooking = () => {
         )}
 
         {phase === "fail" && (
-          <Box bg="gray.50" p={5} w="full">
+          <Box bg="gray.50" p={5} w="full" flex="1" display="flex" flexDirection="column">
             <VStack spacing={6} pb={8} align="stretch" maxW="400px" mx="auto" w="full">
               {/* 실패 배너 */}
               <VStack spacing={2} align="center" textAlign="center" py={2}>

@@ -223,10 +223,10 @@ const TicketlinkHome = () => {
     onClose();
     setIsNicknameModalOpen(false);
     setIsStarted(true);
-    
+
     const targetDelay = difficulty === "cancel" ? 0 : delay;
     setIsOpenTicket(difficulty === "cancel");
-    
+
     setShowGuide(true);
     openTimeRef.current = null;
     openTimeOffsetRef.current = targetDelay === 0 ? 0 : (Math.random() * 300) - 150; // -150ms to +150ms
@@ -707,7 +707,7 @@ const TicketlinkHome = () => {
                         <Text fontWeight="bold" fontSize="14px" color="teal.700">취켓팅 모드 (Cancel)</Text>
                       </Radio>
                       <Text fontSize="12px" color="gray.500" pl={6} mt={1}>
-                        새로고침으로 간헐적으로 풀리는 취소표를 선점하는 모드입니다.
+                        새로고침으로 풀리는 취소표를 선점하는 모드입니다.
                       </Text>
                     </Box>
                   </VStack>
