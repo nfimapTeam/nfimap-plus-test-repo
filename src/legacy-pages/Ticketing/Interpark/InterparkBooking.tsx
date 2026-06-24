@@ -717,8 +717,11 @@ const InterparkBooking = () => {
         for (let i = 0; i < numSelectable + numHijacked; i++) {
           const idx = shuffled[i];
           if (idx !== undefined) {
+            const seatDelay = Math.random() * 800 + 500;
             resetSeats[idx].status = "available";
             resetSeats[idx].hijacked = i >= numSelectable;
+            resetSeats[idx].seatDelay = seatDelay;
+            resetSeats[idx].disappearTime = Date.now() + seatDelay;
             generatedSeatIds.push(resetSeats[idx].id);
           }
         }
@@ -754,17 +757,30 @@ const InterparkBooking = () => {
       const currentRefreshId = ++lastRefreshIdRef.current;
 
       generatedSeatIds.forEach((seatId) => {
-        // Disappear delay per seat: 500ms - 1600ms
-        const seatDelay = Math.random() * 800 + 500;
+        const seat = resetSeats.find((s) => s.id === seatId);
+        const seatDelay = seat?.seatDelay || 800;
 
         setTimeout(() => {
           if (currentRefreshId !== lastRefreshIdRef.current) return;
+          
+          // Clear selectedSeat state if the selected seat disappeared!
+          // We can check if selectedSeat matches seatInfo
+          const sectionId = seatId.split("-")[0];
+          const rowName = seatId.split("-")[1];
+          const colIndex = seatId.split("-")[2];
+          const seatInfoStr = `${sectionId}구역 ${rowName}열 ${colIndex}번`;
+
+          setSelectedSeat((prev) => {
+            if (prev === seatInfoStr) return null;
+            return prev;
+          });
+
           setDetailedSeats((prev) => {
             const sectionSeats = prev[selectedSection];
             if (!sectionSeats) return prev;
 
             const updated = sectionSeats.map((s) => {
-              if (s.id === seatId && s.status === "available") {
+              if (s.id === seatId && (s.status === "available" || s.status === "selected")) {
                 return { ...s, status: "occupied" as const, hijacked: false };
               }
               return s;
@@ -816,7 +832,10 @@ const InterparkBooking = () => {
       const seats = currentDetailedSeats[sectionId] || [];
       const seat = seats.find((s) => s.id === seatId);
 
-      if (!seat || seat.status === "occupied" || seat.hijacked) {
+      const isCancelMode = mode === "cancel";
+      const isPastDisappear = isCancelMode && seat && seat.disappearTime && Date.now() >= seat.disappearTime;
+
+      if (!seat || seat.status === "occupied" || seat.hijacked || isPastDisappear) {
         // Change seat to occupied on map
         setDetailedSeats((prev) => {
           const next = { ...prev };

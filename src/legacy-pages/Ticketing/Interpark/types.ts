@@ -14,4 +14,6 @@ export interface SeatData {
   status: "available" | "occupied" | "selected";
   id: string;
   hijacked?: boolean;
+  disappearTime?: number;
+  seatDelay?: number;
 }

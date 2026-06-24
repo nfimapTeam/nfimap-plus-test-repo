@@ -44,6 +44,16 @@ const SeatMap = ({
   const toast = useToast();
   const [selectedSeatId, setSelectedSeatId] = useState<string | null>(null);
 
+  // Synchronize selection state if the selected seat disappears/becomes occupied in the background
+  React.useEffect(() => {
+    if (selectedSeatId) {
+      const current = seats.find((s) => s.id === selectedSeatId);
+      if (current && current.status === "occupied") {
+        setSelectedSeatId(null);
+      }
+    }
+  }, [seats, selectedSeatId]);
+
   const isFloor = sectionId.startsWith("F");
   const numRows = isFloor ? 20 : 16; // Floor has 20 rows, tiers have 16 rows
 
@@ -53,8 +63,27 @@ const SeatMap = ({
 
   // Click seat handler
   const handleSeatClick = (seat: SeatData) => {
-    if (seat.status === "occupied") {
-      // Occupied seats are unclickable and do nothing
+    const currentSeat = seats.find((s) => s.id === seat.id);
+    if (!currentSeat) return;
+
+    const isCancelMode = mode === "cancel";
+    const isPastDisappear = isCancelMode && currentSeat.disappearTime && Date.now() >= currentSeat.disappearTime;
+
+    if (currentSeat.status === "occupied" || isPastDisappear) {
+      if (isCancelMode) {
+        toast({
+          title: "이미 선택된 좌석입니다.",
+          description: "예매 진행 도중 다른 예매자가 먼저 결제창에 진입했습니다.",
+          status: "error",
+          duration: 2500,
+          isClosable: true,
+          position: "top",
+        });
+        onSeatsChange(
+          seats.map((s) => (s.id === currentSeat.id ? { ...s, status: "occupied" as const } : s))
+        );
+        if (onYiseonjwa) onYiseonjwa();
+      }
       return;
     }
 
@@ -91,7 +120,8 @@ const SeatMap = ({
 
     // Simulate instant submit hijack (race condition where another user hits reserve first!)
     onIncrementAttempts();
-    const hijackChance = isJaehyun ? (totalAttempts < 6 ? 0.96 : 0.87) : isNboom ? 0.20 : 0.05;
+    const isCancelMode = mode === "cancel";
+    const hijackChance = isCancelMode ? (seats.find((s) => s.id === selectedSeatId)?.hijacked ? 1.0 : 0.0) : (isJaehyun ? (totalAttempts < 6 ? 0.96 : 0.87) : isNboom ? 0.20 : 0.05);
     let finalSeats = seats;
     if (Math.random() < hijackChance) {
       finalSeats = seats.map((s) =>
@@ -101,9 +131,10 @@ const SeatMap = ({
     }
 
     const selectedSeat = finalSeats.find((s) => s.id === selectedSeatId);
+    const isPastDisappear = isCancelMode && selectedSeat && selectedSeat.disappearTime && Date.now() >= selectedSeat.disappearTime;
 
     // Check if the seat got occupied by a bot before submit!
-    if (!selectedSeat || selectedSeat.status === "occupied") {
+    if (!selectedSeat || selectedSeat.status === "occupied" || isPastDisappear) {
       toast({
         title: "이미 선택된 좌석입니다.",
         description: "예매 진행 도중 다른 예매자가 먼저 결제창에 진입했습니다.",
@@ -113,6 +144,9 @@ const SeatMap = ({
         position: "top",
       });
       setSelectedSeatId(null);
+      if (isCancelMode && selectedSeat) {
+        onSeatsChange(seats.map((s) => s.id === selectedSeatId ? { ...s, status: "occupied" as const } : s));
+      }
       if (onYiseonjwa) onYiseonjwa();
       return;
     }

@@ -58,6 +58,8 @@ interface TicketlinkSeatData {
   grade: "VIP" | "S" | "A";
   price: number;
   hijacked?: boolean;
+  disappearTime?: number;
+  seatDelay?: number;
 }
 
 const TicketlinkBooking = () => {
@@ -118,6 +120,16 @@ const TicketlinkBooking = () => {
   useEffect(() => {
     selectedSeatIdRef.current = selectedSeatId;
   }, [selectedSeatId]);
+
+  // Synchronize selection state if the selected seat disappears/becomes occupied in the background
+  useEffect(() => {
+    if (selectedSeatId) {
+      const current = seats.find((s) => s.id === selectedSeatId);
+      if (current && current.status === "occupied") {
+        setSelectedSeatId(null);
+      }
+    }
+  }, [seats, selectedSeatId]);
 
   // Queue state
   const [currentQueue, setCurrentQueue] = useState<number>(0);
@@ -785,7 +797,28 @@ const TicketlinkBooking = () => {
   const handleSeatClick = (seat: TicketlinkSeatData) => {
     if (dragMoveDetectedRef.current) return;
 
-    if (seat.status === "occupied") return;
+    const currentSeat = seatsRef.current.find((s) => s.id === seat.id);
+    if (!currentSeat) return;
+
+    const isCancelMode = mode === "cancel";
+    const isPastDisappear = isCancelMode && currentSeat.disappearTime && Date.now() >= currentSeat.disappearTime;
+
+    if (currentSeat.status === "occupied" || isPastDisappear) {
+      if (isCancelMode) {
+        toast({
+          title: "이미 선택된 좌석입니다.",
+          description: "예매 진행 도중 다른 예매자가 먼저 결제창에 진입했습니다.",
+          status: "error",
+          duration: 2500,
+          position: "top",
+        });
+        setSeats((prev) =>
+          prev.map((s) => (s.id === currentSeat.id ? { ...s, status: "occupied" } : s))
+        );
+        handleYiseonjwaTrigger();
+      }
+      return;
+    }
 
     setSeats((prevSeats) =>
       prevSeats.map((s) => {
@@ -872,8 +905,11 @@ const TicketlinkBooking = () => {
         for (let i = 0; i < numSelectable + numHijacked; i++) {
           const idx = shuffled[i];
           if (idx !== undefined) {
+            const seatDelay = Math.random() * 800 + 500;
             resetSeats[idx].status = "available";
             resetSeats[idx].hijacked = i >= numSelectable;
+            resetSeats[idx].seatDelay = seatDelay;
+            resetSeats[idx].disappearTime = Date.now() + seatDelay;
             generatedSeatIds.push(resetSeats[idx].id);
           }
         }
@@ -884,14 +920,17 @@ const TicketlinkBooking = () => {
       const currentRefreshId = ++lastRefreshIdRef.current;
 
       generatedSeatIds.forEach((seatId) => {
-        // Disappear delay per seat: 500ms - 1600ms
-        const seatDelay = Math.random() * 800 + 500;
+        const seat = resetSeats.find((s) => s.id === seatId);
+        const seatDelay = seat?.seatDelay || 800;
 
         setTimeout(() => {
           if (currentRefreshId !== lastRefreshIdRef.current) return;
+          if (selectedSeatIdRef.current === seatId) {
+            setSelectedSeatId(null);
+          }
           setSeats((prev) => {
             return prev.map((s) => {
-              if (s.id === seatId && s.status === "available") {
+              if (s.id === seatId && (s.status === "available" || s.status === "selected")) {
                 return { ...s, status: "occupied" as const, hijacked: false };
               }
               return s;
@@ -945,13 +984,17 @@ const TicketlinkBooking = () => {
 
       // Bot hijack seat (이선좌) check on submission
       setTotalAttempts((prev) => prev + 1);
-      const hijackChance = mode === "cancel" ? (seat?.hijacked ? 1.0 : 0.0) : (isJaehyun ? (totalAttempts < 6 ? 0.96 : 0.87) : isNboom ? 0.20 : 0.05);
+
+      const isCancelMode = mode === "cancel";
+      const isPastDisappear = isCancelMode && seat && seat.disappearTime && Date.now() >= seat.disappearTime;
+
+      const hijackChance = isCancelMode ? (seat?.hijacked ? 1.0 : 0.0) : (isJaehyun ? (totalAttempts < 6 ? 0.96 : 0.87) : isNboom ? 0.20 : 0.05);
       let isHijacked = false;
       if (Math.random() < hijackChance) {
         isHijacked = true;
       }
 
-      if (!seat || seat.status === "occupied" || isHijacked) {
+      if (!seat || seat.status === "occupied" || isHijacked || isPastDisappear) {
         // Change seat to occupied
         setSeats((prev) =>
           prev.map((s) => (s.id === currentSelectedSeatId ? { ...s, status: "occupied" } : s))
