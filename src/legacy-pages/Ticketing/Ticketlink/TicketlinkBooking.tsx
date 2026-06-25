@@ -121,6 +121,11 @@ const TicketlinkBooking = () => {
     selectedSeatIdRef.current = selectedSeatId;
   }, [selectedSeatId]);
 
+  const phaseRef = useRef(phase);
+  useEffect(() => {
+    phaseRef.current = phase;
+  }, [phase]);
+
   // Synchronize selection state if the selected seat disappears/becomes occupied in the background
   useEffect(() => {
     if (selectedSeatId) {
@@ -926,6 +931,7 @@ const TicketlinkBooking = () => {
 
         setTimeout(() => {
           if (currentRefreshId !== lastRefreshIdRef.current) return;
+          if (phaseRef.current !== "seatSelect") return; // Keep selection on success/fail!
           if (selectedSeatIdRef.current === seatId) {
             setSelectedSeatId(null);
           }
@@ -941,9 +947,9 @@ const TicketlinkBooking = () => {
       });
     };
 
-    if (nextCount > 0 && nextCount % 10 === 0) {
+    if (nextCount > 0 && nextCount % 20 === 0) {
       setPendingAction(() => performRefresh);
-      setShowPuzzleOverlay(true);
+      setShowRobotCaptchaModal(true); // Show Nfia robot captcha modal instead of puzzle!
     } else {
       performRefresh();
     }
@@ -1406,8 +1412,8 @@ const TicketlinkBooking = () => {
               엔피아링크 예매 [연습]
             </Text>
             <HStack spacing={3}>
-              <Badge colorScheme={mode === "jaehyun" ? "purple" : mode === "nboom" ? "orange" : "teal"} variant="solid" px={2.5} py={0.5} rounded="md">
-                {mode === "jaehyun" ? "대환장 모드" : mode === "nboom" ? "엔붐온 모드" : "일반 모드"}
+              <Badge colorScheme={mode === "jaehyun" ? "purple" : mode === "nboom" ? "orange" : mode === "cancel" ? "teal" : "gray"} variant="solid" px={2.5} py={0.5} rounded="md">
+                {mode === "jaehyun" ? "대환장 모드" : mode === "nboom" ? "엔붐온 모드" : mode === "cancel" ? "취켓팅 모드" : "일반 모드"}
               </Badge>
               <IconButton
                 icon={<X size={20} />}
@@ -1582,8 +1588,8 @@ const TicketlinkBooking = () => {
                   <Text fontSize="16px" fontWeight="black" color="gray.850">
                     등급/좌석 선택
                   </Text>
-                  <Badge colorScheme={mode === "jaehyun" ? "purple" : mode === "nboom" ? "orange" : "teal"} variant="solid" px={1.5} py={0.5} rounded="md" fontSize="9px">
-                    {mode === "jaehyun" ? "대환장" : mode === "nboom" ? "엔붐온" : "일반"}
+                  <Badge colorScheme={mode === "jaehyun" ? "purple" : mode === "nboom" ? "orange" : mode === "cancel" ? "teal" : "gray"} variant="solid" px={1.5} py={0.5} rounded="md" fontSize="9px">
+                    {mode === "jaehyun" ? "대환장" : mode === "nboom" ? "엔붐온" : mode === "cancel" ? "취켓팅" : "일반"}
                   </Badge>
                 </HStack>
                 <IconButton
@@ -2212,9 +2218,9 @@ const TicketlinkBooking = () => {
                 {randomMember && (
                   <Box
                     p={6}
-                    bg={mode === "jaehyun" ? "purple.50" : mode === "nboom" ? "red.50" : "blue.50"}
+                    bg={mode === "jaehyun" ? "purple.50" : mode === "nboom" ? "red.50" : mode === "cancel" ? "teal.50" : "blue.50"}
                     borderTop="2px dashed"
-                    borderColor={mode === "jaehyun" ? "purple.200" : mode === "nboom" ? "red.200" : "blue.200"}
+                    borderColor={mode === "jaehyun" ? "purple.200" : mode === "nboom" ? "red.200" : mode === "cancel" ? "teal.200" : "blue.200"}
                     mt={4}
                     display="flex"
                     justifyContent="center"
@@ -2636,6 +2642,10 @@ const TicketlinkBooking = () => {
                   duration: 1200,
                   position: "top",
                 });
+                if (pendingAction) {
+                  pendingAction();
+                  setPendingAction(null);
+                }
               }}
             />
           </ModalBody>

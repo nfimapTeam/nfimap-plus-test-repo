@@ -171,7 +171,7 @@ const SeatMap = ({
     <VStack spacing={3} align="stretch" py={2} px={1} h="full">
       {/* 상단 배치도 안내 문구 */}
       <HStack justify="space-between" align="center" px={1}>
-        <Text fontSize="13px" fontWeight="bold" color={mode === "jaehyun" ? "purple.500" : mode === "nboom" ? "red.500" : "blue.500"}>
+        <Text fontSize="13px" fontWeight="bold" color={mode === "jaehyun" ? "purple.500" : mode === "nboom" ? "red.500" : mode === "cancel" ? "teal.500" : "blue.500"}>
           * {sectionId}구역의 좌석 배치도 입니다.
         </Text>
         <IconButton
@@ -221,7 +221,7 @@ const SeatMap = ({
                     if (seat.status === "available") {
                       bgColor = "blue.400"; // available
                     } else if (seat.status === "selected") {
-                      bgColor = mode === "jaehyun" ? "purple.500" : mode === "nboom" ? "red.500" : "blue.500"; // Mode-based selected seat colors
+                      bgColor = mode === "jaehyun" ? "purple.500" : mode === "nboom" ? "red.500" : mode === "cancel" ? "teal.500" : "blue.500"; // Mode-based selected seat colors
                     }
 
                     return (
@@ -279,14 +279,14 @@ const SeatMap = ({
               이전 단계
             </Button>
             <Button
-              colorScheme={mode === "jaehyun" ? "purple" : mode === "nboom" ? "red" : "blue"}
+              colorScheme={mode === "jaehyun" ? "purple" : mode === "nboom" ? "red" : mode === "cancel" ? "teal" : "blue"}
               size="md"
               flex={2}
               rounded="xl"
               onClick={handleCompleteSelection}
               fontWeight="bold"
-              bg={mode === "jaehyun" ? "purple.600" : mode === "nboom" ? "red.600" : "blue.600"}
-              _hover={{ bg: mode === "jaehyun" ? "purple.700" : mode === "nboom" ? "red.700" : "blue.700" }}
+              bg={mode === "jaehyun" ? "purple.600" : mode === "nboom" ? "red.600" : mode === "cancel" ? "teal.600" : "blue.600"}
+              _hover={{ bg: mode === "jaehyun" ? "purple.700" : mode === "nboom" ? "red.700" : mode === "cancel" ? "teal.700" : "blue.700" }}
             >
               좌석선택완료
             </Button>
