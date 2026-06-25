@@ -790,7 +790,7 @@ const TicketlinkBooking = () => {
         position: "top",
       });
     } else {
-      setCaptchaError("보안문자가 올치하지 않습니다.");
+      setCaptchaError("입력한 보안문자가 일치하지 않습니다.");
       setCaptchaInput("");
       const refreshText = generateCaptchaText();
       setCaptchaText(refreshText);
