@@ -9,8 +9,8 @@ import {
   Flex,
   Box,
   Icon,
-  useToast,
 } from "@chakra-ui/react";
+import { useToast } from "@/hooks/useToast";
 import { FaLink } from "react-icons/fa";
 import { RiKakaoTalkFill } from "react-icons/ri";
 import { BsTwitterX } from "react-icons/bs";

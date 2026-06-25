@@ -23,8 +23,8 @@ import {
   Divider,
   Image,
   Input,
-  useToast,
 } from "@chakra-ui/react";
+import { useToast } from "@/hooks/useToast";
 import { ArrowLeft, RefreshCw, Clock, Settings, HelpCircle } from "lucide-react";
 
 const TicketlinkHome = () => {

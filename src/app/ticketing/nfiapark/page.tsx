@@ -23,8 +23,8 @@ import {
   Divider,
   Image,
   Input,
-  useToast,
 } from "@chakra-ui/react";
+import { useToast } from "@/hooks/useToast";
 import { ArrowLeft, Clock, HelpCircle, Settings } from "lucide-react";
 
 const InterparkHomeContent = () => {

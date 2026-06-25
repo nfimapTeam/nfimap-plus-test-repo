@@ -12,7 +12,6 @@ import {
   Grid,
   Button,
   Image,
-  useToast,
   IconButton,
   Modal,
   ModalOverlay,
@@ -24,6 +23,7 @@ import {
   AlertIcon,
   Divider,
 } from "@chakra-ui/react";
+import { useToast } from "@/hooks/useToast";
 import { X, ArrowLeft, RefreshCw, ShieldCheck, CheckCircle2, XCircle } from "lucide-react";
 import { useSetRecoilState } from "recoil";
 import { bookingResultState } from "../../../Atom/bookingResultState";

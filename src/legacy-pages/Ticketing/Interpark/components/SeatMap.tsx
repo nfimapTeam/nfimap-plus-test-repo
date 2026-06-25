@@ -6,10 +6,10 @@ import {
   HStack,
   Button,
   IconButton,
-  useToast,
   Divider,
   Grid,
 } from "@chakra-ui/react";
+import { useToast } from "@/hooks/useToast";
 import { RefreshCw } from "lucide-react";
 import { SeatData } from "../types";
 

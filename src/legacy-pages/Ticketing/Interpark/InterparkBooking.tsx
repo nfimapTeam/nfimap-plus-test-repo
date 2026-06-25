@@ -2,7 +2,8 @@
 
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
-import { Box, HStack, Text, Badge, VStack, Heading, Grid, Button, Image, useToast, IconButton, Modal, ModalOverlay, ModalContent, ModalBody, Divider } from "@chakra-ui/react";
+import { Box, HStack, Text, Badge, VStack, Heading, Grid, Button, Image, IconButton, Modal, ModalOverlay, ModalContent, ModalBody, Divider } from "@chakra-ui/react";
+import { useToast } from "@/hooks/useToast";
 import { X, ArrowLeft, XCircle } from "lucide-react";
 import { useSetRecoilState } from "recoil";
 import { bookingResultState } from "../../../Atom/bookingResultState";
