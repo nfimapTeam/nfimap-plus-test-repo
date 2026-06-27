@@ -193,6 +193,8 @@ const InterparkBooking = () => {
     phaseRef.current = phase;
   }, [phase]);
 
+  const hasSubmittedScoreRef = useRef(false);
+
   const [showPuzzleOverlay, setShowPuzzleOverlay] = useState<boolean>(false);
   const [pendingAction, setPendingAction] = useState<(() => Promise<void> | void) | null>(null);
   const [activePuzzleType, setActivePuzzleType] = useState<"slider" | "nfia">("nfia");
@@ -865,6 +867,9 @@ const InterparkBooking = () => {
         handleYiseonjwaTrigger();
         return;
       }
+
+      if (hasSubmittedScoreRef.current) return;
+      hasSubmittedScoreRef.current = true;
 
       const endTime = performance.now();
       const duration = (delayMs / 1000) + ((endTime - globalStartTimeRef.current) / 1000); // in seconds

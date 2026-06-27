@@ -126,6 +126,8 @@ const TicketlinkBooking = () => {
     phaseRef.current = phase;
   }, [phase]);
 
+  const hasSubmittedScoreRef = useRef(false);
+
   // Synchronize selection state if the selected seat disappears/becomes occupied in the background
   useEffect(() => {
     if (selectedSeatId) {
@@ -1019,6 +1021,9 @@ const TicketlinkBooking = () => {
       }
 
       // Successful Booking!
+      if (hasSubmittedScoreRef.current) return;
+      hasSubmittedScoreRef.current = true;
+
       const endTime = performance.now();
       const duration = (delayMs / 1000) + ((endTime - globalStartTimeRef.current) / 1000);
       setElapsedTime(duration);
